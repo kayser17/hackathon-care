@@ -1,0 +1,49 @@
+# To-do
+
+services:
+  bba_database:
+    build:
+      context: bba_database
+      dockerfile: Dockerfile
+    container_name: bba_db
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    restart: always
+    volumes:
+      - /mnt/data/psql/bba:/var/lib/postgresql/data
+
+  bba_backend:
+    build:
+      context: bba_backend
+      dockerfile: Dockerfile
+    container_name: bba_backend
+    depends_on:
+      - bba_database
+    environment:
+      - BACKEND_PORT=${BACKEND_PORT}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@bba_database:5432/${DB_NAME}
+      - API_KEY=${API_KEY}
+      - API_URL_LLM=${API_URL_LLM}
+      - MODEL_LLM=${MODEL_LLM}
+      - API_URL_WHISPER=${API_URL_WHISPER}
+      - MODEL_WHISPER=${MODEL_WHISPER}
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    restart: always
+
+  bba_ui:
+    build:
+      context: bba_ui
+      dockerfile: Dockerfile
+    container_name: bba_ui
+    depends_on:
+      - bba_backend
+    environment:
+      - BBA_BACKEND_URL=${BBA_BACKEND_URL}
+    ports:
+      - "${UI_PORT}:13000"
+    restart: always
