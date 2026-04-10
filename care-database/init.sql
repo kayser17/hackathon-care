@@ -113,11 +113,15 @@ CREATE TABLE IF NOT EXISTS users (
 	id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 	display_name TEXT NOT NULL,
 	email TEXT NULL,
+	password TEXT NULL,
 	role user_role NOT NULL,
 	is_active BOOLEAN NOT NULL DEFAULT TRUE,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users
+	ADD COLUMN IF NOT EXISTS password TEXT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower
 	ON users (LOWER(email))

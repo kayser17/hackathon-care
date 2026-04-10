@@ -49,5 +49,5 @@ curl -X POST http://localhost:9010/api/pacientes \
 
 ## Notas
 
-- `care-database/init.sql` crea la tabla `pacientes` al iniciar PostgreSQL por primera vez.
+- `care-database/init.sql` define el esquema compartido. PostgreSQL lo aplica en una base nueva y el backend tambien lo reejecuta al arrancar para recuperar volumenes ya inicializados con versiones viejas del esquema.
 - La UI usa un endpoint interno (`/api/health`) que consulta el backend usando `CARE_BACKEND_URL`.

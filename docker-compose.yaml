@@ -18,8 +18,8 @@ services:
 
   care_backend:
     build:
-      context: care-backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: care-backend/Dockerfile
     container_name: care_backend
     depends_on:
       - care_database
@@ -31,6 +31,10 @@ services:
       - CARE_MODEL_LLM=${CARE_MODEL_LLM:-gpt-4o-mini}
       - CARE_API_URL_WHISPER=${CARE_API_URL_WHISPER:-https://api.openai.com/v1/audio/transcriptions}
       - CARE_MODEL_WHISPER=${CARE_MODEL_WHISPER:-whisper-1}
+      - CARE_WEB_PUSH_PUBLIC_KEY=${CARE_WEB_PUSH_PUBLIC_KEY:-}
+      - CARE_WEB_PUSH_PRIVATE_KEY=${CARE_WEB_PUSH_PRIVATE_KEY:-}
+      - CARE_WEB_PUSH_SUBJECT=${CARE_WEB_PUSH_SUBJECT:-mailto:care@example.com}
+      - CARE_ALLOWED_ORIGINS=${CARE_ALLOWED_ORIGINS:-http://localhost:13000}
     ports:
       - "${CARE_BACKEND_PORT:-9010}:${CARE_BACKEND_PORT:-9010}"
     restart: always
@@ -44,7 +48,8 @@ services:
       - care_backend
     environment:
       - CARE_BACKEND_URL=${CARE_BACKEND_URL:-http://care_backend:9010}
-      - NEXT_PUBLIC_CARE_BACKEND_URL=${CARE_BACKEND_URL:-http://care_backend:9010}
+      - NEXT_PUBLIC_CARE_BACKEND_URL=${NEXT_PUBLIC_CARE_BACKEND_URL:-http://localhost:9010}
+      - NEXT_PUBLIC_CARE_WS_URL=${NEXT_PUBLIC_CARE_WS_URL:-ws://localhost:9010/ws/alerts}
     ports:
       - "${CARE_UI_PORT:-13000}:13000"
     restart: always
