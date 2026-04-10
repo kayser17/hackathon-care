@@ -1,0 +1,257 @@
+[
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:00:00Z",
+    "text": "Hey, are you coming to class tomorrow?"
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:00:08Z",
+    "text": "I don't know, I might skip."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:00:15Z",
+    "text": "You always say that. Just show up for once."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:00:25Z",
+    "text": "Why do you even care?"
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:00:35Z",
+    "text": "Because group project, remember?"
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:00:44Z",
+    "text": "Oh right… I forgot."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:00:55Z",
+    "text": "You forget everything. It's honestly frustrating."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:01:05Z",
+    "text": "Sorry, I've just had a lot going on."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:01:18Z",
+    "text": "Everyone has stuff going on, that's not an excuse."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:01:30Z",
+    "text": "You don't understand what I'm dealing with."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:01:42Z",
+    "text": "Then explain instead of disappearing all the time."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:01:55Z",
+    "text": "It's just been hard lately, okay?"
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:02:08Z",
+    "text": "That doesn't help me when you don't do your part."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:02:18Z",
+    "text": "I'm trying..."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:02:30Z",
+    "text": "It doesn't look like it."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:02:42Z",
+    "text": "Why are you being like this?"
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:02:55Z",
+    "text": "Because I'm tired of carrying everything."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:03:05Z",
+    "text": "You're so annoying, nobody wants you here."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:03:10Z",
+    "text": "Leave me alone."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:03:22Z",
+    "text": "Wow, that's how you respond?"
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:03:35Z",
+    "text": "I said leave me alone."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:03:48Z",
+    "text": "No, you don't get to just shut down like that."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:04:00Z",
+    "text": "I can't deal with this right now."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:04:12Z",
+    "text": "You never can. That's the problem."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:04:25Z",
+    "text": "You're making it worse."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:04:38Z",
+    "text": "No, I'm being honest."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:04:50Z",
+    "text": "You're being harsh."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:05:05Z",
+    "text": "Maybe you need harsh."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:05:18Z",
+    "text": "Or maybe I just need someone to understand me."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:05:30Z",
+    "text": "Then stop pushing people away."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:05:42Z",
+    "text": "I'm not pushing, I'm just overwhelmed."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:05:55Z",
+    "text": "It feels like you don't care about anything."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:06:07Z",
+    "text": "That's not true..."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:06:20Z",
+    "text": "Then prove it."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:06:32Z",
+    "text": "I don't even know how anymore."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:06:45Z",
+    "text": "Start by showing up."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:06:58Z",
+    "text": "I'll try."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:07:10Z",
+    "text": "You said that before."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:07:22Z",
+    "text": "I know..."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:07:35Z",
+    "text": "Look, I don't want to fight."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:07:48Z",
+    "text": "Neither do I."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:08:00Z",
+    "text": "Then just communicate better."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:08:12Z",
+    "text": "It's hard for me to open up."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:08:25Z",
+    "text": "I can tell."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:08:38Z",
+    "text": "I'm just really tired of everything."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:08:50Z",
+    "text": "That sounds serious."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:09:02Z",
+    "text": "Yeah… it is."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:09:15Z",
+    "text": "Maybe you should talk to someone."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:09:28Z",
+    "text": "Maybe."
+  },
+  {
+    "speaker": "user_a",
+    "timestamp": "2026-04-08T21:09:40Z",
+    "text": "I'll still need you tomorrow though."
+  },
+  {
+    "speaker": "user_b",
+    "timestamp": "2026-04-08T21:09:52Z",
+    "text": "I'll be there."
+  }
+]

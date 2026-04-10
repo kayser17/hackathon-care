@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+try:
+    from .model_registry import TOXICITY_MODEL_NAME, get_toxicity_components
+except ImportError:
+    from model_registry import TOXICITY_MODEL_NAME, get_toxicity_components
 
 
-MODEL_NAME = "cooperleong00/deberta-v3-large_toxicity-scorer"
+MODEL_NAME = TOXICITY_MODEL_NAME
 
 SAMPLE_TEXTS = [
     "You are an idiot and nobody likes you.",
@@ -17,16 +19,8 @@ SAMPLE_TEXTS = [
     "You are worthless and everyone is laughing at you.",
 ]
 
-
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-model.eval()
-
-
 def get_toxicity_score(text: str) -> float:
+    tokenizer, model, device = get_toxicity_components()
     inputs = tokenizer(
         text,
         return_tensors="pt",
@@ -34,6 +28,8 @@ def get_toxicity_score(text: str) -> float:
         padding=True,
         max_length=512,
     ).to(device)
+
+    import torch
 
     with torch.no_grad():
         outputs = model(**inputs)
@@ -55,6 +51,7 @@ def run_examples() -> list[dict[str, float | str]]:
 
 
 if __name__ == "__main__":
+    _, _, device = get_toxicity_components()
     output = {
         "model_name": MODEL_NAME,
         "device": str(device),
