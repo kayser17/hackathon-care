@@ -74,5 +74,3 @@ Metrics:
 Last report:
 {last_report}
 """
-
-
