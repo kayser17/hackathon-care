@@ -30,7 +30,7 @@ class PacienteOut(BaseModel):
     creado_en: datetime
 
 
-RiskLevel = Literal["high", "medium", "low"]
+RiskLevel = Literal["critical", "high", "medium", "none"]
 
 
 class AlertItem(BaseModel):
@@ -525,7 +525,7 @@ def assessment_level_to_ui(level: str | None) -> RiskLevel:
         return "high"
     if level == "medium":
         return "medium"
-    return "low"
+    return "none"
 
 
 def alert_type_label(alert_type: str) -> str:
@@ -660,7 +660,7 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
                 id=str(row["id"]),
                 title=row["title"],
                 detail=row["summary"],
-                level=assessment_level_to_ui(row["risk_level"] or ("high" if row["alert_level"] == "critical" else "medium")),
+                level="critical" if row["alert_level"] == "critical" else assessment_level_to_ui(row["risk_level"] or "medium"),
             )
             for row in alert_rows
         ],

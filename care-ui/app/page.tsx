@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 type NotificationState = "desconocido" | "granted" | "denied" | "unsupported";
-type RiskLevel = "high" | "medium" | "low";
+type RiskLevel = "critical" | "high" | "medium" | "none" | "low";
 type SessionRole = "guardian" | "child";
 type DetectedConcern = "bullying" | "grooming";
 
@@ -95,33 +95,42 @@ const initialDashboard: ParentDashboard = {
   teenName: "Sofia Martinez",
   updatedAt: "hoy, 20:53",
   riskScore: 78,
-  riskLabel: "Atencion prioritaria",
+  riskLabel: "Atención prioritaria",
   summary:
-    "Se han identificado senales compatibles con malestar emocional y cambios en la interaccion social.",
+    "Se han identificado señales compatibles con malestar emocional y cambios en la interacción social.",
   llmAnswer:
-    "Se observan cambios en el comportamiento social y senales de malestar emocional reciente.",
+    "Se observan cambios en el comportamiento social y señales de malestar emocional reciente.",
   alerts: [{ id: "a1", title: "Malestar emocional elevado", detail: "Lenguaje de tristeza sostenida.", level: "high" }],
   metrics: [
-    { label: "Bienestar emocional", value: "Requiere atencion", helper: "Se observan senales de malestar reciente" },
-    { label: "Interaccion social", value: "Cambios detectados", helper: "Puede haber aislamiento o conflicto relacional" },
+    { label: "Bienestar emocional", value: "Requiere atención", helper: "Se observan señales de malestar reciente" },
+    { label: "Interacción social", value: "Cambios detectados", helper: "Puede haber aislamiento o conflicto relacional" },
   ],
   nextSteps: [
     "Hablar hoy en un momento tranquilo y sin interrupciones.",
     "Contactar con el centro para coordinar el seguimiento.",
   ],
-  timeline: [{ id: "t1", time: "20:53", title: "Senales recientes", detail: "Aparecen cambios de interaccion social y malestar emocional." }],
+  timeline: [{ id: "t1", time: "20:53", title: "Señales recientes", detail: "Aparecen cambios de interacción social y malestar emocional." }],
 };
 
 function riskTone(level: RiskLevel) {
-  if (level === "high") return "critical";
-  if (level === "medium") return "warning";
-  return "calm";
+  if (level === "critical") return "critical";
+  if (level === "high") return "high";
+  if (level === "medium") return "medium";
+  return "none";
 }
 
 function getRiskLevelFromScore(score: number): RiskLevel {
+  if (score >= 90) return "critical";
   if (score >= 75) return "high";
   if (score >= 45) return "medium";
-  return "low";
+  return "none";
+}
+
+function getRiskLevelLabel(level: RiskLevel) {
+  if (level === "critical") return "CRÍTICO";
+  if (level === "high") return "ALTO";
+  if (level === "medium") return "MEDIO";
+  return "SIN RIESGO";
 }
 
 function getDetectedConcern(dashboard: ParentDashboard): DetectedConcern {
@@ -152,7 +161,7 @@ function getDetectedConcern(dashboard: ParentDashboard): DetectedConcern {
 
 function getParentRecommendations(level: RiskLevel, concern: DetectedConcern): RecommendationBlock {
   if (concern === "grooming") {
-    if (level === "high") {
+    if (level === "critical" || level === "high") {
       return {
         title: "Prioridad de seguridad",
         intro: "No confrontes ni alarmes. Habla con calma, protege, guarda evidencias y busca apoyo especializado si aparecen indicios serios.",
@@ -243,25 +252,25 @@ function getParentRecommendations(level: RiskLevel, concern: DetectedConcern): R
     };
   }
 
-  if (level === "high") {
+  if (level === "critical" || level === "high") {
     return {
-      title: "Atencion prioritaria",
-      intro: "Actua con calma. Escuchar y acompanar es mas importante que reaccionar rapido.",
+      title: "Atención prioritaria",
+      intro: "Actúa con calma. Escuchar y acompañar es más importante que reaccionar rápido.",
       steps: [
         "Habla hoy en un momento tranquilo y sin interrupciones.",
-        "Empieza con senales suaves, sin presionar ni juzgar.",
-        "Haz preguntas abiertas sobre su dia, relaciones y emociones.",
+        "Empieza con señales suaves, sin presionar ni juzgar.",
+        "Haz preguntas abiertas sobre su día, relaciones y emociones.",
         "Valida lo que diga y transmite apoyo.",
-        "Si confirma una situacion, registra lo ocurrido con calma.",
+        "Si confirma una situación, registra lo ocurrido con calma.",
         "Contacta con el centro para coordinar el seguimiento.",
       ],
       sections: [
         {
-          title: "Como iniciar la conversacion",
+          title: "Cómo iniciar la conversación",
           items: [
             "Te noto diferente y me preocupa como estas.",
             "No tienes que contarmelo todo ahora.",
-            "Estoy aqui para escucharte.",
+            "Estoy aquí para escucharte.",
             "Te creo.",
             "No es tu culpa.",
             "Vamos a buscar ayuda juntos.",
@@ -270,15 +279,15 @@ function getParentRecommendations(level: RiskLevel, concern: DetectedConcern): R
         {
           title: "Si necesitas hablar con el centro",
           items: [
-            "Mi hija esta viviendo una situacion preocupante.",
-            "Necesitamos revisar que medidas de proteccion pueden activarse.",
-            "Queremos saber como se va a hacer seguimiento.",
+            "Mi hija está viviendo una situación preocupante.",
+            "Necesitamos revisar qué medidas de protección pueden activarse.",
+            "Queremos saber cómo se va a hacer seguimiento.",
           ],
         },
       ],
       avoid: [
         "No digas que seguro exagera.",
-        "No minimices como cosas de ninos.",
+        "No minimices como cosas de niños.",
         "No reacciones con rabia delante de ella.",
         "No la enfrentes directamente al agresor sin plan.",
         "No conviertas la conversacion en un interrogatorio.",
@@ -408,7 +417,6 @@ async function showRiskNotification(payload: ParentDashboard) {
 
 function ParentPortal({
   dashboard,
-  guardianName,
   notificationState,
   showNotificationPrompt,
   onEnableNotifications,
@@ -416,7 +424,6 @@ function ParentPortal({
   onLogout,
 }: {
   dashboard: ParentDashboard;
-  guardianName: string;
   notificationState: NotificationState;
   showNotificationPrompt: boolean;
   onEnableNotifications: () => void;
@@ -426,13 +433,7 @@ function ParentPortal({
   const currentRiskLevel = getRiskLevelFromScore(dashboard.riskScore);
   const detectedConcern = getDetectedConcern(dashboard);
   const recommendationBlock = getParentRecommendations(currentRiskLevel, detectedConcern);
-  const onShowMoreDetails = () => {
-    const timeline = document.getElementById("ultimas-actualizaciones") as HTMLDetailsElement | null;
-    if (!timeline) return;
-    timeline.open = true;
-    timeline.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
+  const displayTeenName = dashboard.teenName === "Sofia Martinez" ? "Sofía Martínez" : dashboard.teenName;
   return (
     <>
       {showNotificationPrompt ? (
@@ -441,7 +442,7 @@ function ParentPortal({
             <p className="eyebrow">Avisos importantes</p>
             <h2 id="notification-prompt-title">Activa las notificaciones</h2>
             <p>
-              CareNest puede enviarte avisos cuando detecte cambios relevantes en el seguimiento de Sofia Martinez.
+              CareNest puede enviarte avisos cuando detecte cambios relevantes en el seguimiento de {displayTeenName}.
             </p>
             {notificationState === "unsupported" ? (
               <p>En iPhone, abre CareNest como app instalada en la pantalla de inicio para habilitar Web Push.</p>
@@ -467,24 +468,24 @@ function ParentPortal({
         <div>
           <p className="app-kicker">CareNest</p>
           <h1>Seguimiento familiar</h1>
-          <p className="topbar-subtitle">Consulta el estado actual y que hacer en cada momento.</p>
+          <p className="topbar-subtitle">Consulta el estado actual y qué hacer en cada momento.</p>
         </div>
       </header>
 
       <section className="hero">
         <div>
           <p className="eyebrow">Estado actual</p>
-          <h2>Atencion prioritaria</h2>
+          <h2>Atención prioritaria</h2>
           <p className="hero-copy">
-            Se han detectado senales que requieren seguimiento cercano hoy.
+            Se han detectado señales que requieren seguimiento cercano hoy.
           </p>
           <div className="hero-meta">
-            <span>Ultima actualizacion: {dashboard.updatedAt}</span>
+            <span>Última actualización: {dashboard.updatedAt}</span>
           </div>
         </div>
-        <div className="hero-score">
+        <div className={`hero-score risk-box-${riskTone(currentRiskLevel)}`}>
           <span>Nivel de seguimiento</span>
-          <strong>{currentRiskLevel === "high" ? "ALTO" : currentRiskLevel === "medium" ? "MEDIO" : "BAJO"}</strong>
+          <strong>{getRiskLevelLabel(currentRiskLevel)}</strong>
           <small>Seguimiento activo recomendado</small>
         </div>
       </section>
@@ -494,16 +495,15 @@ function ParentPortal({
           <p className="eyebrow">Perfil de seguimiento</p>
           <div className="spotlight-header">
             <div>
-              <h2>{dashboard.teenName}</h2>
-              <p className="timestamp">Ultima revision: {dashboard.updatedAt}</p>
+              <h2>{displayTeenName}</h2>
             </div>
-            <div className="spotlight-badge">Atencion prioritaria</div>
+            <div className="spotlight-badge">Atención prioritaria</div>
           </div>
           <p className="summary">{dashboard.summary}</p>
         </article>
 
         <article className="card parent-card-observations">
-          <p className="eyebrow">Que estamos observando</p>
+          <p className="eyebrow">Qué estamos observando</p>
           <div className="section-heading">
             <p>{dashboard.llmAnswer}</p>
           </div>
@@ -515,7 +515,7 @@ function ParentPortal({
             ))}
             {dashboard.metrics.map((metric) => (
               <span key={metric.label} className="signal-chip">
-                {metric.label} {"->"} {metric.value}
+                {metric.label} → {metric.value}
               </span>
             ))}
           </div>
@@ -524,12 +524,12 @@ function ParentPortal({
         <div className="parent-side-stack">
           <details className={`card card-guidance guidance-${currentRiskLevel} parent-disclosure`}>
             <summary>
-              <span className="eyebrow">Que puedes hacer ahora</span>
-              <span className="disclosure-title">Pasos recomendados para acompanar la situacion.</span>
+              <span className="eyebrow">Qué puedes hacer ahora</span>
+              <span className="disclosure-title">Pasos recomendados para acompañar la situación.</span>
             </summary>
 
-            <div className="section-heading">
-              <h2>{recommendationBlock.title}</h2>
+            <div className="section-heading guidance-priority">
+              <p className="mini-heading">{recommendationBlock.title}</p>
               <p>{recommendationBlock.intro}</p>
             </div>
 
@@ -567,12 +567,9 @@ function ParentPortal({
 
           <details className="card card-timeline parent-disclosure" id="ultimas-actualizaciones">
             <summary>
-              <span className="eyebrow">Ultimas actualizaciones</span>
+              <span className="eyebrow">Últimas actualizaciones</span>
               <span className="disclosure-title">Eventos recientes relacionados con el seguimiento.</span>
             </summary>
-            <div className="section-heading timeline-heading">
-              <p>Eventos relevantes registrados durante el periodo reciente.</p>
-            </div>
             <div className="timeline">
               {dashboard.timeline.slice(0, 3).map((event) => (
                 <section key={event.id} className="timeline-item">
@@ -589,16 +586,8 @@ function ParentPortal({
       </section>
 
       <footer className="parent-footer">
-        <div className="parent-cta">
-          <a className="notify-button" href="mailto:orientacion@care.local">
-            Contactar con orientacion
-          </a>
-          <button type="button" className="text-button" onClick={onShowMoreDetails}>
-            Ver mas detalles
-          </button>
-        </div>
         <button type="button" className="text-button" onClick={onLogout}>
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </footer>
     </>
@@ -1005,7 +994,6 @@ export default function HomePage() {
         ) : (
           <ParentPortal
             dashboard={dashboard}
-            guardianName={selectedSession.displayName}
             notificationState={notificationState}
             showNotificationPrompt={showNotificationPrompt}
             onEnableNotifications={handleEnableNotifications}

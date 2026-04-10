@@ -1,8 +1,8 @@
 :root {
-  --bg: #f7f3ee;
+  --bg: #f4f6f2;
   --bg-deep: #173038;
-  --surface: rgba(255, 253, 250, 0.92);
-  --surface-strong: #fffdfa;
+  --surface: rgba(252, 253, 249, 0.94);
+  --surface-strong: #fcfdf9;
   --ink: #18262d;
   --muted: #667983;
   --line: rgba(24, 38, 45, 0.08);
@@ -30,7 +30,7 @@ body {
   color: var(--ink);
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: linear-gradient(180deg, #f7f2ea 0%, #ece4d8 100%);
+  background: linear-gradient(180deg, #f4f6f2 0%, #e9eee8 100%);
 }
 
 a {
@@ -56,8 +56,8 @@ a {
 .app-frame {
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 32px;
-  background: rgba(255, 250, 244, 0.55);
+  border-radius: 8px;
+  background: rgba(252, 253, 249, 0.72);
   backdrop-filter: blur(20px);
 }
 
@@ -91,7 +91,7 @@ a {
 .status-pill {
   flex-shrink: 0;
   padding: 12px 16px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid rgba(22, 36, 43, 0.08);
   background: rgba(255, 255, 255, 0.72);
   color: var(--muted);
@@ -129,8 +129,8 @@ a {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  padding: 6px 10px;
-  border-radius: 999px;
+  padding: 0;
+  border-radius: 0;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -144,10 +144,10 @@ a {
 
 .eyebrow {
   margin: 0 0 12px;
-  color: #6b7d86;
-  background: rgba(24, 38, 45, 0.05);
-  padding: 7px 11px;
-  border-radius: 999px;
+  color: #547078;
+  background: transparent;
+  padding: 0 0 6px;
+  border-bottom: 1px solid rgba(84, 112, 120, 0.24);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -208,7 +208,7 @@ h3 {
   display: inline-flex;
   width: fit-content;
   padding: 8px 11px;
-  border-radius: 999px;
+  border-radius: 8px;
   color: var(--muted);
   background: rgba(24, 38, 45, 0.05);
   font-size: 0.9rem;
@@ -246,7 +246,7 @@ h3 {
   flex-shrink: 0;
   padding: 12px 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 8px;
   background: linear-gradient(180deg, #17413f 0%, #13262f 100%);
   color: #f7f2ea;
   font: inherit;
@@ -317,6 +317,18 @@ a.text-button {
   font-size: 0.98rem;
 }
 
+.mini-heading {
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.guidance-priority {
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(22, 36, 43, 0.08);
+}
+
 .spotlight-header {
   display: flex;
   align-items: flex-start;
@@ -326,7 +338,7 @@ a.text-button {
 
 .spotlight-badge {
   padding: 8px 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(19, 38, 47, 0.08);
   color: #14343a;
   font-size: 0.8rem;
@@ -393,12 +405,26 @@ a.text-button {
 
 .hero-score {
   padding: 24px;
-  border-radius: 28px;
+  border-radius: 8px;
   text-align: left;
-  background:
-    linear-gradient(180deg, rgba(24, 48, 56, 0.96) 0%, rgba(28, 68, 72, 0.94) 100%);
   color: #f8f4ef;
   box-shadow: 0 14px 34px rgba(19, 38, 47, 0.14);
+}
+
+.risk-box-critical {
+  background: linear-gradient(180deg, #2a123f 0%, #1b0d2d 100%);
+}
+
+.risk-box-high {
+  background: linear-gradient(180deg, #b42318 0%, #7a1712 100%);
+}
+
+.risk-box-medium {
+  background: linear-gradient(180deg, #c96814 0%, #8a4308 100%);
+}
+
+.risk-box-none {
+  background: linear-gradient(180deg, #16704f 0%, #0f5138 100%);
 }
 
 .hero-score span,
@@ -439,7 +465,7 @@ a.text-button {
 
 .card {
   padding: 22px;
-  border-radius: 22px;
+  border-radius: 8px;
   border: 1px solid rgba(24, 38, 45, 0.07);
   background: rgba(255, 253, 249, 0.94);
   backdrop-filter: blur(14px);
@@ -678,30 +704,44 @@ a.text-button {
 }
 
 .alert-card.critical {
-  background: rgba(180, 74, 69, 0.08);
-  border-color: rgba(180, 74, 69, 0.12);
+  background: rgba(42, 18, 63, 0.1);
+  border-color: rgba(42, 18, 63, 0.18);
 }
 
 .alert-card.critical .alert-header span {
-  background: rgba(180, 74, 69, 0.14);
-  color: #852621;
+  background: rgba(42, 18, 63, 0.14);
+  color: #2a123f;
 }
 
+.alert-card.high {
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.14);
+}
+
+.alert-card.high .alert-header span {
+  background: rgba(180, 35, 24, 0.14);
+  color: #7a1712;
+}
+
+.alert-card.medium,
 .alert-card.warning {
   background: rgba(184, 122, 24, 0.08);
   border-color: rgba(184, 122, 24, 0.12);
 }
 
+.alert-card.medium .alert-header span,
 .alert-card.warning .alert-header span {
   background: rgba(184, 122, 24, 0.14);
   color: #7a4a00;
 }
 
+.alert-card.none,
 .alert-card.calm {
   background: rgba(28, 124, 112, 0.08);
   border-color: rgba(28, 124, 112, 0.12);
 }
 
+.alert-card.none .alert-header span,
 .alert-card.calm .alert-header span {
   background: rgba(28, 124, 112, 0.14);
   color: #0d5d53;
@@ -732,7 +772,7 @@ a.text-button {
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(21, 122, 110, 0.12);
   color: #0d5d53;
   font-size: 0.92rem;
@@ -801,7 +841,7 @@ a.text-button {
   align-items: center;
   width: fit-content;
   padding: 8px 11px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid rgba(24, 38, 45, 0.08);
   color: var(--ink);
   background: rgba(24, 38, 45, 0.04);
@@ -810,17 +850,25 @@ a.text-button {
 }
 
 .signal-chip.critical {
-  color: #88413d;
-  background: rgba(180, 74, 69, 0.08);
-  border-color: rgba(180, 74, 69, 0.12);
+  color: #2a123f;
+  background: rgba(42, 18, 63, 0.1);
+  border-color: rgba(42, 18, 63, 0.18);
 }
 
+.signal-chip.high {
+  color: #7a1712;
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.14);
+}
+
+.signal-chip.medium,
 .signal-chip.warning {
   color: #7a4a00;
   background: rgba(184, 122, 24, 0.08);
   border-color: rgba(184, 122, 24, 0.12);
 }
 
+.signal-chip.none,
 .signal-chip.calm {
   color: #17675d;
   background: rgba(28, 124, 112, 0.08);
@@ -841,6 +889,7 @@ a.text-button {
 
 .parent-disclosure summary {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
   gap: 8px;
   cursor: pointer;
   list-style: none;
@@ -897,22 +946,27 @@ a.text-button {
 }
 
 .guidance-high {
-  background: linear-gradient(180deg, #fffaf8 0%, #fffdfb 100%);
+  background: linear-gradient(180deg, rgba(255, 248, 247, 0.98) 0%, rgba(252, 253, 249, 0.98) 100%);
+}
+
+.guidance-critical {
+  background: linear-gradient(180deg, rgba(248, 245, 252, 0.98) 0%, rgba(252, 253, 249, 0.98) 100%);
 }
 
 .guidance-medium {
-  background: linear-gradient(180deg, #fffbf6 0%, #fffdfb 100%);
+  background: linear-gradient(180deg, rgba(255, 251, 244, 0.98) 0%, rgba(252, 253, 249, 0.98) 100%);
 }
 
+.guidance-none,
 .guidance-low {
-  background: linear-gradient(180deg, #f9fcfb 0%, #fffdfb 100%);
+  background: linear-gradient(180deg, rgba(247, 252, 250, 0.98) 0%, rgba(252, 253, 249, 0.98) 100%);
 }
 
 .guidance-section,
 .guidance-avoid {
   margin-top: 18px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 8px;
   background: rgba(24, 38, 45, 0.04);
 }
 
@@ -966,7 +1020,7 @@ a.text-button {
 
   .app-frame {
     padding: 14px;
-    border-radius: 26px;
+    border-radius: 8px;
   }
 
   .app-topbar {
@@ -976,7 +1030,7 @@ a.text-button {
   .card,
   .hero-score {
     padding: 18px;
-    border-radius: 20px;
+    border-radius: 8px;
   }
 
   .grid {
@@ -1093,7 +1147,7 @@ a.text-button {
   .action-index {
     width: 32px;
     height: 32px;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 0.85rem;
   }
 
@@ -1116,7 +1170,7 @@ a.text-button {
     display: inline-flex;
     width: fit-content;
     padding: 5px 9px;
-    border-radius: 999px;
+    border-radius: 8px;
     background: rgba(21, 122, 110, 0.1);
   }
 
