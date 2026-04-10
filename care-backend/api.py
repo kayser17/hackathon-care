@@ -43,7 +43,7 @@ class AlertItem(BaseModel):
 class MetricItem(BaseModel):
     label: str
     value: str
-    trend: str
+    helper: str
 
 
 class TimelineEvent(BaseModel):
@@ -94,6 +94,15 @@ class SessionUserOut(BaseModel):
     email: str | None = None
 
 
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=1, max_length=255)
+
+
+class ChildChatSendRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+
+
 class SessionCatalogOut(BaseModel):
     guardians: list[SessionUserOut]
     children: list[SessionUserOut]
@@ -121,15 +130,22 @@ class ChildChatViewOut(BaseModel):
 
 
 DEMO_CHAT_MESSAGES = [
-    {"sender_key": "child_sofia", "text": "Hola, estas por ahi?", "sentAt": "17:34"},
-    {"sender_key": "child_mateo", "text": "Si. Hoy no queria volver al grupo.", "sentAt": "17:35"},
-    {"sender_key": "child_sofia", "text": "Otra vez se pusieron pesados contigo?", "sentAt": "17:36"},
-    {"sender_key": "child_mateo", "text": "Si, empezaron con bromas y luego ya no paro.", "sentAt": "17:37"},
-    {"sender_key": "child_sofia", "text": "Si quieres salimos del chat y hablas conmigo por aqui.", "sentAt": "17:38"},
-    {"sender_key": "child_mateo", "text": "Gracias. Estoy un poco agobiado, la verdad.", "sentAt": "17:39"},
+    {"sender_key": "child_1", "text": "Nadie te quiere en nuestro grupo.", "sentAt": "17:34"},
+    {"sender_key": "child_2", "text": "Para ya, no te he hecho nada.", "sentAt": "17:35"},
+    {"sender_key": "child_1", "text": "Das pena, siempre molestas y caes fatal.", "sentAt": "17:36"},
+    {"sender_key": "child_2", "text": "Me estas haciendo sentir fatal.", "sentAt": "17:37"},
+    {"sender_key": "child_1", "text": "Pues vete, mejor si no apareces manana.", "sentAt": "17:38"},
+    {"sender_key": "child_2", "text": "No quiero ir al cole por tu culpa.", "sentAt": "17:39"},
 ]
 
+DEMO_CHILD_EMAILS = {
+    "child_1": "diego.ramos@care.local",
+    "child_2": "sofia.martinez@care.local",
+}
+
 SCHEMA_PATH = Path(__file__).resolve().with_name("init.sql")
+if not SCHEMA_PATH.exists():
+    SCHEMA_PATH = Path(__file__).resolve().parents[1] / "care-database" / "init.sql"
 
 
 async def ensure_schema(pool: asyncpg.Pool) -> None:
@@ -138,16 +154,17 @@ async def ensure_schema(pool: asyncpg.Pool) -> None:
         await connection.execute(schema_sql)
 
 
-async def upsert_user(pool: asyncpg.Pool, display_name: str, email: str, role: str) -> asyncpg.Record:
+async def upsert_user(pool: asyncpg.Pool, display_name: str, email: str, password: str, role: str) -> asyncpg.Record:
     row = await pool.fetchrow(
         """
         UPDATE users
-        SET display_name = $1, role = $3, updated_at = NOW()
+        SET display_name = $1, password = $3, role = $4, updated_at = NOW()
         WHERE LOWER(email) = LOWER($2)
         RETURNING id
         """,
         display_name,
         email,
+        password,
         role,
     )
     if row is not None:
@@ -155,8 +172,8 @@ async def upsert_user(pool: asyncpg.Pool, display_name: str, email: str, role: s
 
     return await pool.fetchrow(
         """
-        INSERT INTO users (display_name, email, role)
-        SELECT $1, $2, $3
+        INSERT INTO users (display_name, email, password, role)
+        SELECT $1, $2, $3, $4
         WHERE NOT EXISTS (
             SELECT 1
             FROM users
@@ -166,26 +183,57 @@ async def upsert_user(pool: asyncpg.Pool, display_name: str, email: str, role: s
         """,
         display_name,
         email,
+        password,
         role,
     )
 
 
 async def ensure_demo_data(pool: asyncpg.Pool) -> None:
-    guardian = await upsert_user(pool, "Laura Martinez", "laura.guardian@care.local", "guardian")
-    child_sofia = await upsert_user(pool, "Sofia", "sofia.child@care.local", "child")
-    child_mateo = await upsert_user(pool, "Mateo", "mateo.child@care.local", "child")
+    await pool.execute(
+        """
+        DELETE FROM users
+        WHERE role IN ('guardian', 'child')
+          AND LOWER(email) NOT IN (
+              'laura.martinez@care.local',
+              'diego.ramos@care.local',
+              'sofia.martinez@care.local'
+          )
+        """
+    )
+
+    guardian = await upsert_user(pool, "Laura Martinez", "laura.martinez@care.local", "laura123", "guardian")
+    child_1 = await upsert_user(pool, "Diego Ramos", "diego.ramos@care.local", "diego123", "child")
+    child_2 = await upsert_user(pool, "Sofia Martinez", "sofia.martinez@care.local", "sofia123", "child")
 
     guardian_id = guardian["id"]
-    child_sofia_id = child_sofia["id"]
-    child_mateo_id = child_mateo["id"]
+    child_1_id = child_1["id"]
+    child_2_id = child_2["id"]
+
+    await pool.execute(
+        """
+        UPDATE alerts
+        SET title = 'Malestar emocional elevado', updated_at = NOW()
+        WHERE title = 'Distress emocional elevado'
+        """
+    )
 
     await pool.execute(
         """
         INSERT INTO child_guardian_links (child_user_id, guardian_user_id, relationship_type)
-        VALUES ($1, $2, 'mother')
+        VALUES ($1, $2, 'parent')
         ON CONFLICT (child_user_id, guardian_user_id) DO NOTHING
         """,
-        child_sofia_id,
+        child_1_id,
+        guardian_id,
+    )
+
+    await pool.execute(
+        """
+        INSERT INTO child_guardian_links (child_user_id, guardian_user_id, relationship_type)
+        VALUES ($1, $2, 'parent')
+        ON CONFLICT (child_user_id, guardian_user_id) DO NOTHING
+        """,
+        child_2_id,
         guardian_id,
     )
 
@@ -198,8 +246,8 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         WHERE c.conversation_type = 'direct'
         LIMIT 1
         """,
-        child_sofia_id,
-        child_mateo_id,
+        child_1_id,
+        child_2_id,
     )
 
     if conversation is None:
@@ -218,8 +266,8 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             ON CONFLICT (conversation_id, user_id) DO NOTHING
             """,
             conversation_id,
-            child_sofia_id,
-            child_mateo_id,
+            child_1_id,
+            child_2_id,
         )
     else:
         conversation_id = conversation["id"]
@@ -230,8 +278,8 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             ON CONFLICT (conversation_id, user_id) DO NOTHING
             """,
             conversation_id,
-            child_sofia_id,
-            child_mateo_id,
+            child_1_id,
+            child_2_id,
         )
 
     existing_alert = await pool.fetchval(
@@ -241,7 +289,7 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         WHERE a.child_user_id = $1
         LIMIT 1
         """,
-        child_sofia_id,
+        child_2_id,
     )
     if existing_alert is not None:
         return
@@ -367,13 +415,13 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             $4,
             'bullying',
             'critical',
-            'Distress emocional elevado',
+            'Malestar emocional elevado',
             'Se detecta un patron compatible con acoso relacional y aumento del malestar emocional.',
             'open'
         )
         RETURNING id
         """,
-        child_sofia_id,
+        child_2_id,
         conversation_id,
         chunk_id,
         assessment_id,
@@ -393,7 +441,7 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
 def build_default_dashboard() -> ParentDashboard:
     prompt_metrics = DEFAULT_PROMPT_METRICS.copy()
     return ParentDashboard(
-        teenName="Sofia",
+        teenName="Sofia Martinez",
         updatedAt="Hoy, 09:12",
         riskScore=78,
         riskLabel="Alerta prioritaria",
@@ -402,7 +450,7 @@ def build_default_dashboard() -> ParentDashboard:
             "sostenida y comentarios de rechazo en un chat reciente."
         ),
         llmAnswer=(
-            "El analisis del LLM sugiere un riesgo emocional creciente. Se observan "
+            "El analisis del caso sugiere un riesgo emocional creciente. Se observan "
             "expresiones de desesperanza, retirada del grupo y una interaccion repetida "
             "donde la menor recibe mensajes descalificadores. La recomendacion es iniciar "
             "una conversacion calmada hoy mismo, validar como se siente y valorar contacto "
@@ -411,7 +459,7 @@ def build_default_dashboard() -> ParentDashboard:
         alerts=[
             AlertItem(
                 id="a1",
-                title="Distress emocional elevado",
+                title="Malestar emocional elevado",
                 detail="Lenguaje con tristeza, agotamiento y sensacion de exclusion en las ultimas 24 horas.",
                 level="high",
             ),
@@ -429,13 +477,13 @@ def build_default_dashboard() -> ParentDashboard:
             ),
         ],
         metrics=[
-            MetricItem(label="Toxicidad", value=f"{prompt_metrics['toxicity']:.2f}", trend="senal de hostilidad"),
-            MetricItem(label="Insulto", value=f"{prompt_metrics['insult_score']:.2f}", trend="agresion verbal"),
-            MetricItem(label="Distress", value=f"{prompt_metrics['distress_signal']:.2f}", trend="malestar detectado"),
-            MetricItem(label="Confianza", value=f"{prompt_metrics['confidence']:.2f}", trend="fiabilidad del analisis"),
+            MetricItem(label="Bienestar emocional", value="Requiere atencion", helper="Se observan senales de malestar reciente"),
+            MetricItem(label="Interaccion social", value="Cambios detectados", helper="Puede haber aislamiento o conflicto relacional"),
+            MetricItem(label="Nivel de seguimiento", value="Alto", helper="Se recomienda observacion cercana"),
+            MetricItem(label="Estado del caso", value="En revision", helper="Se actualizara si hay cambios relevantes"),
         ],
         nextSteps=[
-            "Hablar con Sofia hoy en un entorno privado y sin confrontacion.",
+            "Hablar con Sofia Martinez hoy en un entorno privado y sin confrontacion.",
             "Preguntar por su experiencia escolar y su relacion con el grupo del chat.",
             "Registrar cambios de sueno, apetito o aislamiento durante esta semana.",
             "Escalar a orientacion escolar o profesional de salud mental si aparecen ideas autolesivas o empeora el retraimiento.",
@@ -456,8 +504,8 @@ def build_default_dashboard() -> ParentDashboard:
             TimelineEvent(
                 id="t3",
                 time="09:02",
-                title="Resumen del modelo",
-                detail="El LLM consolida senales de tristeza, aislamiento y hostilidad social sostenida.",
+                title="Actualizacion del seguimiento",
+                detail="Se consolidan senales de tristeza, aislamiento y hostilidad social sostenida.",
             ),
         ],
         promptMetrics=prompt_metrics,
@@ -484,7 +532,7 @@ def alert_type_label(alert_type: str) -> str:
     mapping = {
         "bullying": "Acoso detectado",
         "grooming": "Manipulacion detectada",
-        "distress": "Distress emocional",
+        "distress": "Malestar emocional",
     }
     return mapping.get(alert_type, alert_type)
 
@@ -617,10 +665,10 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
             for row in alert_rows
         ],
         metrics=[
-            MetricItem(label="Toxicidad", value=f"{metrics_payload['toxicity']:.2f}", trend="senal de hostilidad"),
-            MetricItem(label="Insulto", value=f"{metrics_payload['insult_score']:.2f}", trend="agresion verbal"),
-            MetricItem(label="Distress", value=f"{metrics_payload['distress_signal']:.2f}", trend="malestar detectado"),
-            MetricItem(label="Confianza", value=f"{metrics_payload['confidence']:.2f}", trend="fiabilidad del analisis"),
+            MetricItem(label="Bienestar emocional", value="Requiere atencion", helper="Se observan senales de malestar reciente"),
+            MetricItem(label="Interaccion social", value="Cambios detectados", helper="Puede haber aislamiento o conflicto relacional"),
+            MetricItem(label="Nivel de seguimiento", value="Alto", helper="Se recomienda observacion cercana"),
+            MetricItem(label="Estado del caso", value="En revision", helper="Se actualizara si hay cambios relevantes"),
         ],
         nextSteps=next_steps,
         timeline=[
@@ -634,6 +682,39 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
         ],
         promptMetrics=metrics_payload,
     )
+
+
+async def seed_child_chat_messages(pool: asyncpg.Pool) -> list[ChildChatMessageOut]:
+    rows = await pool.fetch(
+        """
+        SELECT id, display_name, LOWER(email) AS email
+        FROM users
+        WHERE LOWER(email) = ANY($1::text[])
+        """,
+        list(DEMO_CHILD_EMAILS.values()),
+    )
+    users_by_email = {row["email"]: row for row in rows}
+
+    messages: list[ChildChatMessageOut] = []
+    for index, item in enumerate(DEMO_CHAT_MESSAGES, start=1):
+        sender = users_by_email[DEMO_CHILD_EMAILS[item["sender_key"]]]
+        messages.append(
+            ChildChatMessageOut(
+                id=f"msg-{index}",
+                senderId=str(sender["id"]),
+                senderName=sender["display_name"],
+                text=item["text"],
+                sentAt=item["sentAt"],
+            )
+        )
+    return messages
+
+
+async def get_shared_child_chat_messages(pool: asyncpg.Pool, conversation_id: str) -> list[ChildChatMessageOut]:
+    messages_by_conversation: dict[str, list[ChildChatMessageOut]] = app.state.child_chat_messages
+    if conversation_id not in messages_by_conversation:
+        messages_by_conversation[conversation_id] = await seed_child_chat_messages(pool)
+    return messages_by_conversation[conversation_id]
 
 
 class AlertHub:
@@ -688,7 +769,7 @@ def build_push_message(payload: ParentDashboard) -> dict[str, Any]:
     body = (
         f"{top_alert.title}. {top_alert.detail}"
         if top_alert
-        else f"Nuevo nivel de riesgo: {payload.riskScore}/100."
+        else "Hay una nueva actualizacion de seguimiento."
     )
     return {
         "title": f"Actualizacion sobre {payload.teenName}",
@@ -745,6 +826,7 @@ async def lifespan(app: FastAPI):
     await ensure_demo_data(app.state.pool)
     app.state.alert_hub = AlertHub()
     app.state.alert_state = build_default_dashboard()
+    app.state.child_chat_messages = {}
     app.state.vapid_public_key = os.getenv("CARE_WEB_PUSH_PUBLIC_KEY")
     app.state.vapid_private_key = os.getenv("CARE_WEB_PUSH_PRIVATE_KEY")
     app.state.vapid_subject = os.getenv("CARE_WEB_PUSH_SUBJECT", "mailto:care@example.com")
@@ -875,6 +957,34 @@ async def get_session_catalog() -> SessionCatalogOut:
     )
 
 
+@app.post("/api/session/login", response_model=SessionUserOut)
+async def login(payload: LoginRequest) -> SessionUserOut:
+    row = await app.state.pool.fetchrow(
+        """
+        SELECT id, display_name, email, role
+        FROM users
+        WHERE LOWER(email) = LOWER($1)
+          AND password = $2
+          AND role IN ('guardian', 'child')
+          AND is_active = TRUE
+        LIMIT 1
+        """,
+        payload.email.strip(),
+        payload.password,
+    )
+
+    if row is None:
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    role = "guardian" if row["role"] == "guardian" else "child"
+    return SessionUserOut(
+        id=str(row["id"]),
+        displayName=row["display_name"],
+        email=row["email"],
+        role=role,
+    )
+
+
 @app.get("/api/session/child/{user_id}/chat", response_model=ChildChatViewOut)
 async def get_child_chat_view(user_id: str) -> ChildChatViewOut:
     pool = app.state.pool
@@ -907,33 +1017,63 @@ async def get_child_chat_view(user_id: str) -> ChildChatViewOut:
         ChildChatParticipantOut(id=viewer_id, displayName=conversation["viewer_display_name"]),
         ChildChatParticipantOut(id=other_id, displayName=conversation["other_display_name"]),
     ]
-    sender_map = {
-        "child_sofia": participants[0],
-        "child_mateo": participants[1],
-    }
-
-    if conversation["viewer_display_name"] == "Mateo":
-        sender_map = {
-            "child_sofia": participants[1],
-            "child_mateo": participants[0],
-        }
+    messages = await get_shared_child_chat_messages(pool, str(conversation["conversation_id"]))
 
     return ChildChatViewOut(
         conversationId=str(conversation["conversation_id"]),
-        title=f"Chat privado: {conversation['viewer_display_name']} y {conversation['other_display_name']}",
+        title=conversation["other_display_name"],
         viewerUserId=viewer_id,
         participants=participants,
-        messages=[
-            ChildChatMessageOut(
-                id=f"msg-{index}",
-                senderId=sender_map[item["sender_key"]].id,
-                senderName=sender_map[item["sender_key"]].displayName,
-                text=item["text"],
-                sentAt=item["sentAt"],
-            )
-            for index, item in enumerate(DEMO_CHAT_MESSAGES, start=1)
-        ],
+        messages=messages,
     )
+
+
+@app.post("/api/session/child/{user_id}/chat/messages", response_model=ChildChatViewOut)
+async def send_child_chat_message(user_id: str, payload: ChildChatSendRequest) -> ChildChatViewOut:
+    pool = app.state.pool
+    conversation_id = await pool.fetchval(
+        """
+        SELECT c.id
+        FROM users viewer_u
+        JOIN conversation_participants viewer_cp ON viewer_cp.user_id = viewer_u.id
+        JOIN conversations c ON c.id = viewer_cp.conversation_id AND c.status = 'active'
+        WHERE viewer_u.id = $1::uuid
+          AND viewer_u.role = 'child'
+        ORDER BY c.updated_at DESC
+        LIMIT 1
+        """,
+        user_id,
+    )
+    sender = await pool.fetchrow(
+        """
+        SELECT id, display_name
+        FROM users
+        WHERE id = $1::uuid
+          AND role = 'child'
+          AND is_active = TRUE
+        """,
+        user_id,
+    )
+
+    if conversation_id is None or sender is None:
+        raise HTTPException(status_code=404, detail="No se encontro conversacion activa para este menor")
+
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="El mensaje no puede estar vacio")
+
+    messages = await get_shared_child_chat_messages(pool, str(conversation_id))
+    messages.append(
+        ChildChatMessageOut(
+            id=f"msg-{len(messages) + 1}",
+            senderId=str(sender["id"]),
+            senderName=sender["display_name"],
+            text=text,
+            sentAt=datetime.now().strftime("%H:%M"),
+        )
+    )
+
+    return await get_child_chat_view(user_id)
 
 
 @app.post("/api/alerts/publish", response_model=AlertEnvelope)

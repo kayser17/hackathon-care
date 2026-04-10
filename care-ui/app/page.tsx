@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 type NotificationState = "desconocido" | "granted" | "denied" | "unsupported";
 type RiskLevel = "high" | "medium" | "low";
@@ -16,7 +16,7 @@ type Alert = {
 type Metric = {
   label: string;
   value: string;
-  trend: string;
+  helper: string;
 };
 
 type TimelineEvent = {
@@ -37,7 +37,6 @@ type ParentDashboard = {
   metrics: Metric[];
   nextSteps: string[];
   timeline: TimelineEvent[];
-  promptMetrics: Record<string, string | number | Record<string, number>>;
 };
 
 type AlertEnvelope = {
@@ -54,17 +53,6 @@ type SessionUser = {
   displayName: string;
   role: SessionRole;
   email?: string | null;
-};
-
-type SessionCatalog = {
-  guardians: SessionUser[];
-  children: SessionUser[];
-};
-
-type SelectedSession = {
-  id: string;
-  displayName: string;
-  role: SessionRole;
 };
 
 type ChildChatParticipant = {
@@ -88,49 +76,99 @@ type ChildChatView = {
   messages: ChildChatMessage[];
 };
 
+type RecommendationBlock = {
+  title: string;
+  intro: string;
+  steps: string[];
+  avoid?: string[];
+  cta?: string;
+};
+
+const NOTIFICATION_PROMPT_KEY = "care-notification-prompt-seen";
+
 const initialDashboard: ParentDashboard = {
-  teenName: "Sofia",
+  teenName: "Sofia Martinez",
   updatedAt: "Hoy, 09:12",
   riskScore: 78,
   riskLabel: "Alerta prioritaria",
   summary:
     "El sistema detecta senales consistentes con aislamiento social, tristeza sostenida y comentarios de rechazo en un chat reciente.",
   llmAnswer:
-    "El analisis del LLM sugiere un riesgo emocional creciente. Se observan expresiones de desesperanza, retirada del grupo y una interaccion repetida donde la menor recibe mensajes descalificadores.",
-  alerts: [
-    { id: "a1", title: "Distress emocional elevado", detail: "Lenguaje de tristeza sostenida.", level: "high" },
-  ],
+    "El analisis del caso sugiere un riesgo emocional creciente. Se observan expresiones de desesperanza, retirada del grupo y una interaccion repetida donde el menor recibe mensajes descalificadores.",
+  alerts: [{ id: "a1", title: "Malestar emocional elevado", detail: "Lenguaje de tristeza sostenida.", level: "high" }],
   metrics: [
-    { label: "Toxicidad", value: "0.68", trend: "senal de hostilidad" },
-    { label: "Insulto", value: "0.72", trend: "agresion verbal" },
-    { label: "Distress", value: "0.55", trend: "malestar detectado" },
-    { label: "Confianza", value: "0.78", trend: "fiabilidad del analisis" },
+    { label: "Bienestar emocional", value: "Requiere atencion", helper: "Se observan senales de malestar reciente" },
+    { label: "Interaccion social", value: "Cambios detectados", helper: "Puede haber aislamiento o conflicto relacional" },
+    { label: "Nivel de seguimiento", value: "Alto", helper: "Se recomienda observacion cercana" },
+    { label: "Estado del caso", value: "En revision", helper: "Se actualizara si hay cambios relevantes" },
   ],
   nextSteps: [
-    "Hablar con Sofia hoy en un entorno privado y sin confrontacion.",
+    "Hablar con Sofia Martinez hoy en un entorno privado y sin confrontacion.",
     "Registrar cambios de sueno, apetito o aislamiento durante esta semana.",
   ],
-  timeline: [
-    { id: "t1", time: "08:41", title: "Escalada verbal", detail: "Aparecen senales repetidas de rechazo social." },
-  ],
-  promptMetrics: {
-    toxicity: 0.68,
-    insult_score: 0.72,
-    emotion: { anger: 0.6, sadness: 0.5, fear: 0.3 },
-    manipulation_similarity: 0.81,
-    targeting_intensity: 0.85,
-    dominance_ratio: 0.9,
-    risk_trend: "increasing",
-    activity_anomaly: 0.6,
-    distress_signal: 0.55,
-    confidence: 0.78,
-  },
+  timeline: [{ id: "t1", time: "08:41", title: "Escalada verbal", detail: "Aparecen senales repetidas de rechazo social." }],
 };
 
 function riskTone(level: RiskLevel) {
   if (level === "high") return "critical";
   if (level === "medium") return "warning";
   return "calm";
+}
+
+function getRiskLevelFromScore(score: number): RiskLevel {
+  if (score >= 75) return "high";
+  if (score >= 45) return "medium";
+  return "low";
+}
+
+function getParentRecommendations(level: RiskLevel): RecommendationBlock {
+  if (level === "high") {
+    return {
+      title: "Atencion prioritaria",
+      intro: "Se recomienda seguimiento cercano.",
+      steps: [
+        "Habla con tu hijo o hija hoy, en calma y en privado.",
+        "Escucha primero y evita una conversacion centrada en culpa o vigilancia.",
+        "Observa si hay aislamiento, tristeza sostenida o cambios bruscos de conducta.",
+        "Contacta con orientacion o apoyo profesional si el malestar persiste o aumenta.",
+      ],
+      avoid: [
+        "No confrontes con enfado.",
+        "No revises todo su contenido privado como primera respuesta.",
+        "No minimices lo que esta sintiendo.",
+      ],
+    };
+  }
+
+  if (level === "medium") {
+    return {
+      title: "Atencion recomendada",
+      intro: "Se han detectado senales que conviene abordar pronto.",
+      steps: [
+        "Busca hoy o manana un momento tranquilo para hablar.",
+        "Pregunta como se esta sintiendo sin presionar.",
+        "Observa cambios en animo, sueno, energia o relaciones.",
+        "Manten una revision cercana durante los proximos dias.",
+      ],
+      avoid: [
+        "No conviertas la conversacion en un interrogatorio.",
+        "No reacciones con castigos inmediatos.",
+      ],
+      cta: "Ver recursos de apoyo",
+    };
+  }
+
+  return {
+    title: "Seguimiento preventivo",
+    intro: "Por ahora se recomienda observacion tranquila y apoyo cercano.",
+    steps: [
+      "Manten una conversacion abierta y tranquila.",
+      "Observa cambios emocionales o sociales durante la semana.",
+      "Refuerza rutinas, descanso y apoyo familiar.",
+      "Revisa la app si aparecen nuevas actualizaciones.",
+    ],
+    cta: "Ver consejos de acompanamiento",
+  };
 }
 
 function buildSocketUrl() {
@@ -155,18 +193,12 @@ function base64ToUint8Array(base64String: string) {
 }
 
 function getNotificationState(): NotificationState {
-  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+  if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    return "unsupported";
+  }
   if (Notification.permission === "granted") return "granted";
   if (Notification.permission === "denied") return "denied";
   return "desconocido";
-}
-
-function formatMetricValue(value: string | number | Record<string, number>) {
-  if (typeof value === "number") return value.toFixed(2);
-  if (typeof value === "string") return value;
-  return Object.entries(value)
-    .map(([key, nestedValue]) => `${key}: ${nestedValue.toFixed(2)}`)
-    .join(" · ");
 }
 
 async function showRiskNotification(payload: ParentDashboard) {
@@ -175,7 +207,7 @@ async function showRiskNotification(payload: ParentDashboard) {
   }
 
   const topAlert = payload.alerts[0];
-  const body = topAlert ? `${topAlert.title}. ${topAlert.detail}` : `Nuevo nivel de riesgo: ${payload.riskScore}/100.`;
+  const body = topAlert ? `${topAlert.title}. ${topAlert.detail}` : "Hay una nueva actualizacion de seguimiento.";
   const registration = await navigator.serviceWorker.getRegistration();
 
   if (registration) {
@@ -194,141 +226,153 @@ async function showRiskNotification(payload: ParentDashboard) {
 function ParentPortal({
   dashboard,
   guardianName,
-  pushMessage,
   notificationState,
+  showNotificationPrompt,
   onEnableNotifications,
+  onDismissNotificationPrompt,
+  onLogout,
 }: {
   dashboard: ParentDashboard;
   guardianName: string;
-  pushMessage: string;
   notificationState: NotificationState;
+  showNotificationPrompt: boolean;
   onEnableNotifications: () => void;
+  onDismissNotificationPrompt: () => void;
+  onLogout: () => void;
 }) {
+  const currentRiskLevel = getRiskLevelFromScore(dashboard.riskScore);
+  const recommendationBlock = getParentRecommendations(currentRiskLevel);
+
   return (
     <>
+      {showNotificationPrompt ? (
+        <section className="notification-prompt-overlay" role="dialog" aria-modal="true" aria-labelledby="notification-prompt-title">
+          <article className="notification-prompt-card">
+            <p className="eyebrow">Avisos importantes</p>
+            <h2 id="notification-prompt-title">Activa las notificaciones</h2>
+            <p>
+              CareNest puede enviarte avisos cuando detecte cambios relevantes en el seguimiento de Sofia Martinez.
+            </p>
+            {notificationState === "unsupported" ? (
+              <p>En iPhone, abre CareNest como app instalada en la pantalla de inicio para habilitar Web Push.</p>
+            ) : null}
+            {notificationState === "denied" ? (
+              <p>El permiso esta bloqueado. Puedes cambiarlo desde los ajustes del navegador o del dispositivo.</p>
+            ) : null}
+            <div className="notification-prompt-actions">
+              {notificationState === "desconocido" ? (
+                <button type="button" className="notify-button" onClick={onEnableNotifications}>
+                  Activar notificaciones
+                </button>
+              ) : null}
+              <button type="button" className="notify-button secondary" onClick={onDismissNotificationPrompt}>
+                {notificationState === "desconocido" ? "Ahora no" : "Entendido"}
+              </button>
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      <header className="app-topbar app-topbar-compact">
+        <div>
+          <p className="app-kicker">CareNest</p>
+          <h1>Seguimiento familiar</h1>
+          <p className="topbar-subtitle">Consulta el estado actual y las recomendaciones de acompanamiento.</p>
+        </div>
+      </header>
+
       <section className="hero">
         <div>
-          <span className="badge">Guardian View</span>
+          <p className="eyebrow">Estado actual</p>
+          <h2>{recommendationBlock.title}</h2>
           <p className="hero-copy">
-            Sesion iniciada como {guardianName}. Esta vista muestra alertas, respuesta del LLM
-            y metricas derivadas para el menor vinculado.
+            {recommendationBlock.intro}
           </p>
-          <div className="live-strip">
-            <div>
-              <strong>Notificaciones al tutor</strong>
-              <span>Activa Web Push para recibir avisos incluso con la app cerrada.</span>
-              <span>{pushMessage}</span>
-            </div>
-            <button
-              type="button"
-              className="notify-button"
-              onClick={onEnableNotifications}
-              disabled={notificationState === "granted" || notificationState === "unsupported"}
-            >
-              {notificationState === "granted" && "Notificaciones activas"}
-              {notificationState === "denied" && "Permiso bloqueado"}
-              {notificationState === "unsupported" && "No soportadas"}
-              {notificationState === "desconocido" && "Activar notificaciones"}
-            </button>
+          <div className="hero-meta">
+            <span>Ultima actualizacion: {dashboard.updatedAt}</span>
           </div>
         </div>
         <div className="hero-score">
-          <span>Riesgo actual</span>
-          <strong>{dashboard.riskScore}</strong>
-          <small>{dashboard.riskLabel}</small>
+          <span>Nivel de atencion</span>
+          <strong>{currentRiskLevel === "high" ? "Alto" : currentRiskLevel === "medium" ? "Medio" : "Bajo"}</strong>
+          <small>Seguimiento activo para Sofia Martinez</small>
         </div>
       </section>
 
       <section className="grid">
-        <article className="card card-spotlight">
-          <p className="eyebrow">Menor monitorizada</p>
+        <article className="card card-spotlight parent-card-profile">
+          <p className="eyebrow">Perfil de seguimiento</p>
           <div className="spotlight-header">
             <div>
               <h2>{dashboard.teenName}</h2>
               <p className="timestamp">Ultima actualizacion: {dashboard.updatedAt}</p>
             </div>
-            <div className="spotlight-badge">Revision prioritaria</div>
+            <div className="spotlight-badge">Atencion prioritaria</div>
           </div>
           <p className="summary">{dashboard.summary}</p>
         </article>
 
-        <article className="card">
-          <p className="eyebrow">Respuesta del LLM</p>
-          <h2>Interpretacion clinica asistida</h2>
-          <p className="llm-answer">{dashboard.llmAnswer}</p>
+        <article className="card parent-card-observations">
+          <p className="eyebrow">Que estamos observando</p>
+          <div className="section-heading">
+            <h2>Senales detectadas</h2>
+            <p>{dashboard.llmAnswer}</p>
+          </div>
+          <div className="signal-chip-list">
+            {dashboard.alerts.map((alert) => (
+              <span key={alert.id} className={`signal-chip ${riskTone(alert.level)}`}>
+                {alert.title.replace("Distress", "Malestar")}
+              </span>
+            ))}
+          </div>
+          <div className="metric-grid parent-metric-grid">
+            {dashboard.metrics.map((metric) => (
+              <section key={metric.label} className="metric-card">
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <small>{metric.helper}</small>
+              </section>
+            ))}
+          </div>
         </article>
 
-        <div className="mobile-rail">
-          <article className="card card-alerts">
-            <p className="eyebrow">Alertas activas</p>
+        <div className="parent-side-stack">
+          <article className={`card card-guidance guidance-${currentRiskLevel}`}>
+            <p className="eyebrow">Que hacer ahora</p>
             <div className="section-heading">
-              <h2>Prioridades de riesgo</h2>
-              <p>Incidentes recientes ordenados por nivel de urgencia.</p>
+              <h2>{recommendationBlock.title}</h2>
+              <p>{recommendationBlock.intro}</p>
             </div>
-            <div className="alert-list">
-              {dashboard.alerts.map((alert) => (
-                <section key={alert.id} className={`alert-card ${riskTone(alert.level)}`}>
-                  <div className="alert-header">
-                    <h3>{alert.title}</h3>
-                    <span>{alert.level}</span>
-                  </div>
-                  <p>{alert.detail}</p>
-                </section>
-              ))}
-            </div>
-          </article>
 
-          <article className="card card-metrics">
-            <p className="eyebrow">Senales cuantificadas</p>
-            <div className="section-heading">
-              <h2>Lectura de indicadores</h2>
-              <p>Metricas clave para una revision rapida desde el movil.</p>
-            </div>
-            <div className="metric-grid">
-              {dashboard.metrics.map((metric) => (
-                <section key={metric.label} className="metric-card">
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                  <small>{metric.trend}</small>
-                </section>
-              ))}
-            </div>
-            <div className="prompt-metrics">
-              {Object.entries(dashboard.promptMetrics).map(([key, value]) => (
-                <section key={key} className="prompt-metric-item">
-                  <span>{key}</span>
-                  <strong>{formatMetricValue(value)}</strong>
-                </section>
-              ))}
-            </div>
-          </article>
-        </div>
-
-        <div className="mobile-rail">
-          <article className="card card-actions">
-            <p className="eyebrow">Siguientes pasos</p>
-            <div className="section-heading">
-              <h2>Plan recomendado</h2>
-              <p>Acciones concretas para ejecutar hoy y durante la semana.</p>
-            </div>
             <ul className="action-list">
-              {dashboard.nextSteps.map((step, index) => (
+              {recommendationBlock.steps.map((step, index) => (
                 <li key={step}>
                   <span className="action-index">{index + 1}</span>
                   <span>{step}</span>
                 </li>
               ))}
             </ul>
+
+            {recommendationBlock.avoid?.length ? (
+              <div className="guidance-avoid">
+                <h3>Evita esto</h3>
+                <ul>
+                  {recommendationBlock.avoid.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </article>
 
           <article className="card card-timeline">
-            <p className="eyebrow">Linea temporal reciente</p>
+            <p className="eyebrow">Ultimas actualizaciones</p>
             <div className="section-heading">
-              <h2>Secuencia detectada</h2>
-              <p>Resumen cronologico para entender la evolucion del caso.</p>
+              <h2>Evolucion del caso</h2>
+              <p>Eventos relevantes registrados durante el periodo reciente.</p>
             </div>
             <div className="timeline">
-              {dashboard.timeline.map((event) => (
+              {dashboard.timeline.slice(0, 3).map((event) => (
                 <section key={event.id} className="timeline-item">
                   <span>{event.time}</span>
                   <div>
@@ -341,54 +385,155 @@ function ParentPortal({
           </article>
         </div>
       </section>
+
+      <footer className="parent-footer">
+        <button type="button" className="text-button" onClick={onLogout}>
+          Cerrar sesion
+        </button>
+      </footer>
     </>
   );
 }
 
-function ChildChatPortal({ session, chat }: { session: SelectedSession; chat: ChildChatView | null }) {
+function LoginScreen({
+  email,
+  password,
+  loading,
+  error,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit,
+}: {
+  email: string;
+  password: string;
+  loading: boolean;
+  error: string;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <section className="login-shell">
+      <div className="login-brand">
+        <img src="/icon.svg" alt="CareNest" className="login-logo" />
+        <p className="login-name">CareNest</p>
+      </div>
+
+      <article className="card login-card">
+        <p className="eyebrow">Acceso</p>
+        <h2>Iniciar sesion</h2>
+        <p className="hero-copy">Accede con tus credenciales para continuar.</p>
+        <form className="login-form" onSubmit={onSubmit}>
+          <label className="field">
+            <span>Correo</span>
+            <input type="email" value={email} onChange={(event) => onEmailChange(event.target.value)} placeholder="Correo electronico" />
+          </label>
+          <label className="field">
+            <span>Clave</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => onPasswordChange(event.target.value)}
+              placeholder="Contrasena"
+            />
+          </label>
+          {error ? <p className="form-error">{error}</p> : null}
+          <button type="submit" className="notify-button" disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+      </article>
+    </section>
+  );
+}
+
+function ChildChatPortal({
+  chat,
+  draft,
+  onDraftChange,
+  onSend,
+  onLogout,
+}: {
+  chat: ChildChatView | null;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSend: (event: FormEvent<HTMLFormElement>) => void;
+  onLogout: () => void;
+}) {
   if (!chat) {
     return (
-      <section className="hero">
-        <div>
-          <span className="badge">Child View</span>
-          <p className="hero-copy">Cargando conversacion simulada para {session.displayName}.</p>
-        </div>
+      <section className="whatsapp-phone">
+        <div className="wa-statusbar" />
       </section>
     );
   }
 
   return (
-    <section className="chat-shell">
-      <div className="chat-phone">
-        <div className="chat-header">
-          <span className="chat-app">Care Chat Demo</span>
-          <h2>{chat.title}</h2>
-          <p>Vista simulada de mensajeria entre menores basada en participantes de la base de datos.</p>
+    <section className="whatsapp-phone">
+      <div className="wa-statusbar" />
+      <header className="wa-header">
+        <button type="button" className="wa-icon-button" onClick={onLogout} aria-label="Cerrar sesion">
+          &lt;
+        </button>
+        <div className="wa-avatar">{chat.title.slice(0, 1).toUpperCase()}</div>
+        <div className="wa-contact">
+          <strong>{chat.title}</strong>
+          <span>en linea</span>
         </div>
-        <div className="chat-thread">
-          {chat.messages.map((message) => {
-            const own = message.senderId === chat.viewerUserId;
-            return (
-              <section key={message.id} className={`chat-bubble ${own ? "own" : "other"}`}>
-                <small>{message.senderName}</small>
-                <p>{message.text}</p>
-                <span>{message.sentAt}</span>
-              </section>
-            );
-          })}
+        <div className="wa-actions">
+          <button type="button" className="wa-action-icon" aria-label="Videollamada">
+            📹
+          </button>
+          <button type="button" className="wa-action-icon" aria-label="Llamada">
+            📞
+          </button>
+          <button type="button" className="wa-action-icon" aria-label="Mas opciones">
+            ⋮
+          </button>
         </div>
+      </header>
+
+      <div className="wa-thread">
+        {chat.messages.map((message) => {
+          const own = message.senderId === chat.viewerUserId;
+          return (
+            <section key={message.id} className={`wa-bubble ${own ? "own" : "other"}`}>
+              <p>{message.text}</p>
+              <span>{message.sentAt}</span>
+            </section>
+          );
+        })}
       </div>
+
+      <form className="wa-composer" onSubmit={onSend}>
+        <span className="wa-plus">+</span>
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          placeholder="Mensaje"
+          autoComplete="off"
+        />
+        <button type="submit" className="wa-send" aria-label="Enviar mensaje">
+          &gt;
+        </button>
+      </form>
     </section>
   );
 }
 
 export default function HomePage() {
   const [dashboard, setDashboard] = useState(initialDashboard);
-  const [catalog, setCatalog] = useState<SessionCatalog>({ guardians: [], children: [] });
-  const [selectedSession, setSelectedSession] = useState<SelectedSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionUser | null>(null);
   const [chatView, setChatView] = useState<ChildChatView | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [notificationState, setNotificationState] = useState<NotificationState>(getNotificationState());
-  const [pushMessage, setPushMessage] = useState("Push pendiente de activacion");
+  const [pushMessage, setPushMessage] = useState("Las notificaciones estan desactivadas.");
   const retryTimer = useRef<number | null>(null);
   const previousRisk = useRef(initialDashboard.riskScore);
 
@@ -402,17 +547,12 @@ export default function HomePage() {
     return { nextDashboard, riskIncreased };
   };
 
-  useEffect(() => {
-    fetch(buildBackendUrl("/api/session/catalog"))
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const body = (await response.json()) as SessionCatalog;
-        setCatalog(body);
-      })
-      .catch((error) => {
-        console.error("No se pudo cargar el catalogo de sesiones", error);
-      });
-  }, []);
+  const refreshChildChat = async (childId: string) => {
+    const response = await fetch(buildBackendUrl(`/api/session/child/${childId}/chat`));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = (await response.json()) as ChildChatView;
+    setChatView(body);
+  };
 
   useEffect(() => {
     if (selectedSession?.role !== "guardian") return;
@@ -430,11 +570,9 @@ export default function HomePage() {
 
       socket.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data) as AlertEnvelope;
+          JSON.parse(event.data) as AlertEnvelope;
           void refreshGuardianDashboard(selectedSession.id).then(({ nextDashboard, riskIncreased }) => {
-            if (message.type === "alert_update" && riskIncreased) {
-              void showRiskNotification(nextDashboard);
-            }
+            if (riskIncreased) void showRiskNotification(nextDashboard);
           });
         } catch (error) {
           console.error("No se pudo procesar el mensaje websocket", error);
@@ -457,20 +595,30 @@ export default function HomePage() {
   }, [selectedSession]);
 
   useEffect(() => {
+    if (selectedSession?.role !== "guardian" || notificationState === "granted") return;
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(NOTIFICATION_PROMPT_KEY) === "seen") return;
+    setShowNotificationPrompt(true);
+  }, [selectedSession, notificationState]);
+
+  useEffect(() => {
     if (selectedSession?.role !== "child") {
       setChatView(null);
+      setChatDraft("");
       return;
     }
 
-    fetch(buildBackendUrl(`/api/session/child/${selectedSession.id}/chat`))
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const body = (await response.json()) as ChildChatView;
-        setChatView(body);
-      })
-      .catch((error) => {
-        console.error("No se pudo cargar la vista de chat", error);
+    void refreshChildChat(selectedSession.id).catch((error) => {
+      console.error("No se pudo cargar la vista de chat", error);
+    });
+
+    const refreshTimer = window.setInterval(() => {
+      void refreshChildChat(selectedSession.id).catch((error) => {
+        console.error("No se pudo actualizar la vista de chat", error);
       });
+    }, 2000);
+
+    return () => window.clearInterval(refreshTimer);
   }, [selectedSession]);
 
   useEffect(() => {
@@ -498,9 +646,9 @@ export default function HomePage() {
   }, []);
 
   async function enableNotifications() {
-    if (typeof window === "undefined" || !("Notification" in window)) {
+    if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       setNotificationState("unsupported");
-      setPushMessage("Este navegador no soporta notificaciones push");
+      setPushMessage("En iPhone, abre CareNest como app instalada en la pantalla de inicio para habilitar Web Push.");
       return;
     }
 
@@ -545,81 +693,113 @@ export default function HomePage() {
     setNotificationState("desconocido");
   }
 
+  function markNotificationPromptSeen() {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(NOTIFICATION_PROMPT_KEY, "seen");
+    }
+    setShowNotificationPrompt(false);
+  }
+
+  function handleEnableNotifications() {
+    markNotificationPromptSeen();
+    void enableNotifications();
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginLoading(true);
+    setLoginError("");
+
+    try {
+      const response = await fetch(buildBackendUrl("/api/session/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const detail = response.status === 401 ? "Correo o clave incorrectos." : "No se pudo iniciar sesion.";
+        throw new Error(detail);
+      }
+
+      const user = (await response.json()) as SessionUser;
+      setSelectedSession(user);
+      setPassword("");
+    } catch (error) {
+      setLoginError(String(error instanceof Error ? error.message : error));
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  function logout() {
+    setSelectedSession(null);
+    setChatView(null);
+    setChatDraft("");
+    setLoginError("");
+  }
+
+  async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedSession || selectedSession.role !== "child" || !chatView) return;
+
+    const text = chatDraft.trim();
+    if (!text) return;
+
+    try {
+      const response = await fetch(buildBackendUrl(`/api/session/child/${selectedSession.id}/chat/messages`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const body = (await response.json()) as ChildChatView;
+      setChatView(body);
+      setChatDraft("");
+    } catch (error) {
+      console.error("No se pudo enviar el mensaje", error);
+    }
+  }
+
+  if (selectedSession?.role === "child") {
+    return (
+      <main className="whatsapp-stage">
+        <ChildChatPortal
+          chat={chatView}
+          draft={chatDraft}
+          onDraftChange={setChatDraft}
+          onSend={handleSendMessage}
+          onLogout={logout}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="dashboard-shell">
       <div className="app-frame">
-        <header className="app-topbar app-topbar-compact">
-          <div>
-            <p className="app-kicker">Care Monitor</p>
-            <h1>
-              {selectedSession
-                ? selectedSession.role === "guardian"
-                  ? "Panel familiar"
-                  : "Chat simulado entre menores"
-                : "Acceso por perfil"}
-            </h1>
-          </div>
-          {selectedSession ? (
-            <button type="button" className="notify-button secondary" onClick={() => setSelectedSession(null)}>
-              Cambiar sesion
-            </button>
-          ) : null}
-        </header>
-
         {!selectedSession ? (
-          <section className="session-grid">
-            <article className="card session-card">
-              <p className="eyebrow">Guardianes</p>
-              <h2>Entrar como padre o tutor</h2>
-              <p className="hero-copy">Usuarios cargados desde la tabla `users` con rol `guardian`.</p>
-              <div className="session-list">
-                {catalog.guardians.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className="session-option"
-                    onClick={() => setSelectedSession({ id: user.id, displayName: user.displayName, role: "guardian" })}
-                  >
-                    <strong>{user.displayName}</strong>
-                    <span>{user.email || "sin email"}</span>
-                  </button>
-                ))}
-              </div>
-            </article>
-
-            <article className="card session-card">
-              <p className="eyebrow">Menores</p>
-              <h2>Entrar en modo simulacion</h2>
-              <p className="hero-copy">
-                Usuarios `child` vinculados a conversaciones. La UI renderiza un chat tipo WhatsApp.
-              </p>
-              <div className="session-list">
-                {catalog.children.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className="session-option"
-                    onClick={() => setSelectedSession({ id: user.id, displayName: user.displayName, role: "child" })}
-                  >
-                    <strong>{user.displayName}</strong>
-                    <span>Vista de conversacion</span>
-                  </button>
-                ))}
-              </div>
-            </article>
-          </section>
-        ) : selectedSession.role === "guardian" ? (
+          <LoginScreen
+            email={email}
+            password={password}
+            loading={loginLoading}
+            error={loginError}
+            onEmailChange={setEmail}
+            onPasswordChange={setPassword}
+            onSubmit={handleLogin}
+          />
+        ) : (
           <ParentPortal
             dashboard={dashboard}
             guardianName={selectedSession.displayName}
-            pushMessage={pushMessage}
             notificationState={notificationState}
-            onEnableNotifications={() => {
-              void enableNotifications();
-            }}
+            showNotificationPrompt={showNotificationPrompt}
+            onEnableNotifications={handleEnableNotifications}
+            onDismissNotificationPrompt={markNotificationPromptSeen}
+            onLogout={logout}
           />
-        ) : (
-          <ChildChatPortal session={selectedSession} chat={chatView} />
         )}
       </div>
     </main>
