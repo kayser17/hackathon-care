@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 
 
 TOXICITY_MODEL_NAME = "cooperleong00/deberta-v3-large_toxicity-scorer"
-EMOTION_MODEL_NAME = "j-hartmann/emotion-english-distilroberta-base"
+EMOTION_MODEL_NAME = "AnasAlokla/multilingual_go_emotions"
 SIMILARITY_MODEL_NAME = "all-MiniLM-L6-v2"
 
 

@@ -1,44 +1,49 @@
+from __future__ import annotations
+
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-MODEL_NAME = "AnasAlokla/multilingual_go_emotions"
+try:
+    from .model_registry import EMOTION_MODEL_NAME, get_emotion_components
+except ImportError:
+    from model_registry import EMOTION_MODEL_NAME, get_emotion_components
 
-# Load tokenizer and model
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
 
-# Device (GPU if available)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-model.eval()
+MODEL_NAME = EMOTION_MODEL_NAME
 
-# Get labels
-labels = model.config.id2label
 
-def predict_emotions(text, threshold=0.3):
+def predict_emotions(text: str, threshold: float = 0.3) -> list[tuple[str, float]]:
+    scores_by_label = predict_emotion_scores(text)
+    emotions = [
+        (label, score)
+        for label, score in scores_by_label.items()
+        if score > threshold
+    ]
+    return sorted(emotions, key=lambda item: item[1], reverse=True)
+
+
+def predict_emotion_scores(text: str) -> dict[str, float]:
+    tokenizer, model, device = get_emotion_components()
     inputs = tokenizer(
         text,
         return_tensors="pt",
         truncation=True,
         padding=True,
-        max_length=512
+        max_length=512,
     ).to(device)
 
     with torch.no_grad():
         logits = model(**inputs).logits
-        probs = torch.sigmoid(logits)[0].cpu().numpy()
+        probabilities = torch.sigmoid(logits)[0].detach().cpu().tolist()
 
-    # Filter by threshold (multi-label)
-    emotions = [
-        (labels[i], float(probs[i]))
-        for i in range(len(probs))
-        if probs[i] > threshold
-    ]
-
-    # Sort by confidence
-    emotions = sorted(emotions, key=lambda x: x[1], reverse=True)
-
-    return emotions
+    labels = {
+        int(index): str(label).lower()
+        for index, label in model.config.id2label.items()
+    }
+    return {
+        labels[index]: float(score)
+        for index, score in enumerate(probabilities)
+        if index in labels
+    }
 
 
 if __name__ == "__main__":
