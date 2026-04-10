@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS pacientes (
+	id SERIAL PRIMARY KEY,
+	nombre VARCHAR(120) NOT NULL,
+	documento VARCHAR(40) UNIQUE,
+	fecha_nacimiento DATE,
+	creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

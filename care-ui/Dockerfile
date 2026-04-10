@@ -9,7 +9,7 @@ WORKDIR /app
 RUN npm install -g pnpm
 
 # Copy manifest files
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 
 # Install dependencies (including devDependencies)
 RUN pnpm install
@@ -36,7 +36,7 @@ ENV NODE_ENV=production
 RUN npm install -g pnpm
 
 # Install only production deps
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 RUN pnpm install --prod
 
 # Copy build artifacts from builder

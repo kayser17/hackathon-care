@@ -1,49 +1,53 @@
 # To-do
 
 services:
-  bba_database:
+  care_database:
     build:
-      context: bba_database
+      context: care-database
       dockerfile: Dockerfile
-    container_name: bba_db
+    container_name: care_db
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${CARE_DB_USER:-care_user}
+      - POSTGRES_PASSWORD=${CARE_DB_PASSWORD:-care_password}
+      - POSTGRES_DB=${CARE_DB_NAME:-care_health}
     ports:
-      - "${DB_PORT}:5432"
+      - "${CARE_DB_PORT:-5432}:5432"
     restart: always
     volumes:
-      - /mnt/data/psql/bba:/var/lib/postgresql/data
+      - care_db_data:/var/lib/postgresql/data
 
-  bba_backend:
+  care_backend:
     build:
-      context: bba_backend
+      context: care-backend
       dockerfile: Dockerfile
-    container_name: bba_backend
+    container_name: care_backend
     depends_on:
-      - bba_database
+      - care_database
     environment:
-      - BACKEND_PORT=${BACKEND_PORT}
-      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@bba_database:5432/${DB_NAME}
-      - API_KEY=${API_KEY}
-      - API_URL_LLM=${API_URL_LLM}
-      - MODEL_LLM=${MODEL_LLM}
-      - API_URL_WHISPER=${API_URL_WHISPER}
-      - MODEL_WHISPER=${MODEL_WHISPER}
+      - BACKEND_PORT=${CARE_BACKEND_PORT:-9010}
+      - DATABASE_URL=postgresql://${CARE_DB_USER:-care_user}:${CARE_DB_PASSWORD:-care_password}@care_database:5432/${CARE_DB_NAME:-care_health}
+      - CARE_API_KEY=${CARE_API_KEY:-}
+      - CARE_API_URL_LLM=${CARE_API_URL_LLM:-https://api.openai.com/v1}
+      - CARE_MODEL_LLM=${CARE_MODEL_LLM:-gpt-4o-mini}
+      - CARE_API_URL_WHISPER=${CARE_API_URL_WHISPER:-https://api.openai.com/v1/audio/transcriptions}
+      - CARE_MODEL_WHISPER=${CARE_MODEL_WHISPER:-whisper-1}
     ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
+      - "${CARE_BACKEND_PORT:-9010}:${CARE_BACKEND_PORT:-9010}"
     restart: always
 
-  bba_ui:
+  care_ui:
     build:
-      context: bba_ui
+      context: care-ui
       dockerfile: Dockerfile
-    container_name: bba_ui
+    container_name: care_ui
     depends_on:
-      - bba_backend
+      - care_backend
     environment:
-      - BBA_BACKEND_URL=${BBA_BACKEND_URL}
+      - CARE_BACKEND_URL=${CARE_BACKEND_URL:-http://care_backend:9010}
+      - NEXT_PUBLIC_CARE_BACKEND_URL=${CARE_BACKEND_URL:-http://care_backend:9010}
     ports:
-      - "${UI_PORT}:13000"
+      - "${CARE_UI_PORT:-13000}:13000"
     restart: always
+
+volumes:
+  care_db_data:
