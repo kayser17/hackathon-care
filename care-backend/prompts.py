@@ -1,3 +1,23 @@
+import json
+
+
+DEFAULT_PROMPT_METRICS = {
+    "toxicity": 0.68,
+    "insult_score": 0.72,
+    "emotion": {
+        "anger": 0.6,
+        "sadness": 0.5,
+        "fear": 0.3,
+    },
+    "manipulation_similarity": 0.81,
+    "targeting_intensity": 0.85,
+    "dominance_ratio": 0.9,
+    "risk_trend": "increasing",
+    "activity_anomaly": 0.6,
+    "distress_signal": 0.55,
+    "confidence": 0.78,
+}
+
 SYSTEM_PROMPT = """
 You are an AI system specialized in detecting risks to minors in digital conversations.
 
@@ -54,25 +74,12 @@ Conversation:
 {conversation}
 
 Metrics:
-{
-  "toxicity": 0.68,
-  "insult_score": 0.72,
-  "emotion": {
-    "anger": 0.6,
-    "sadness": 0.5,
-    "fear": 0.3
-  },
-  "manipulation_similarity": 0.81,
-  "targeting_intensity": 0.85,
-  "dominance_ratio": 0.9,
-  "risk_trend": "increasing",
-  "activity_anomaly": 0.6,
-  "distress_signal": 0.55,
-  "confidence": 0.78
-}
+{metrics_block}
 
 Last report:
 {last_report}
 """
 
 
+def build_metrics_block(metrics: dict | None = None) -> str:
+    return json.dumps(metrics or DEFAULT_PROMPT_METRICS, indent=2)
