@@ -8,3 +8,9 @@ sqlalchemy>=2.0.38
 asyncpg
 python-multipart>=0.0.9
 pywebpush>=2.0.3
+torch>=2.2.0
+transformers>=4.45.0
+numpy>=1.26.0
+sentence-transformers>=3.0.0
+torch>=2.0.0
+transformers>=5.0.0

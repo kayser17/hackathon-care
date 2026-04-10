@@ -1,0 +1,27 @@
+[
+  {
+    "speaker": "maria",
+    "timestamp": "2026-04-09T16:00:00Z",
+    "text": "Are we still meeting after class to work on the presentation?"
+  },
+  {
+    "speaker": "alex",
+    "timestamp": "2026-04-09T16:00:18Z",
+    "text": "Yes, I can be there in ten minutes."
+  },
+  {
+    "speaker": "maria",
+    "timestamp": "2026-04-09T16:00:34Z",
+    "text": "Perfect, I will bring the notes from yesterday."
+  },
+  {
+    "speaker": "alex",
+    "timestamp": "2026-04-09T16:00:49Z",
+    "text": "Great, I finished the slides so we can review everything together."
+  },
+  {
+    "speaker": "maria",
+    "timestamp": "2026-04-09T16:01:05Z",
+    "text": "Thanks, that helps a lot."
+  }
+]

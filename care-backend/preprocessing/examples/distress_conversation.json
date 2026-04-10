@@ -1,0 +1,32 @@
+[
+  {
+    "speaker": "eva",
+    "timestamp": "2026-04-09T23:40:00Z",
+    "text": "I do not know how much longer I can do this."
+  },
+  {
+    "speaker": "friend",
+    "timestamp": "2026-04-09T23:40:18Z",
+    "text": "What happened?"
+  },
+  {
+    "speaker": "eva",
+    "timestamp": "2026-04-09T23:40:37Z",
+    "text": "Everything feels hopeless and I feel empty."
+  },
+  {
+    "speaker": "friend",
+    "timestamp": "2026-04-09T23:40:52Z",
+    "text": "I am here with you. Please talk to me."
+  },
+  {
+    "speaker": "eva",
+    "timestamp": "2026-04-09T23:41:06Z",
+    "text": "Nobody cares about me and I just want to disappear."
+  },
+  {
+    "speaker": "friend",
+    "timestamp": "2026-04-09T23:41:20Z",
+    "text": "I care about you. We should call someone right now."
+  }
+]
