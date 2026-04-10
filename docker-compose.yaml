@@ -26,11 +26,16 @@ services:
     environment:
       - BACKEND_PORT=${CARE_BACKEND_PORT:-9010}
       - DATABASE_URL=postgresql://${CARE_DB_USER:-care_user}:${CARE_DB_PASSWORD:-care_password}@care_database:5432/${CARE_DB_NAME:-care_health}
+      - AWS_PROFILE=${AWS_PROFILE:-Academy}
+      - AWS_SDK_LOAD_CONFIG=${AWS_SDK_LOAD_CONFIG:-1}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-eu-central-1}
       - CARE_API_KEY=${CARE_API_KEY:-}
       - CARE_API_URL_LLM=${CARE_API_URL_LLM:-https://api.openai.com/v1}
       - CARE_MODEL_LLM=${CARE_MODEL_LLM:-gpt-4o-mini}
       - CARE_API_URL_WHISPER=${CARE_API_URL_WHISPER:-https://api.openai.com/v1/audio/transcriptions}
       - CARE_MODEL_WHISPER=${CARE_MODEL_WHISPER:-whisper-1}
+    volumes:
+      - ~/.aws:/root/.aws
     ports:
       - "${CARE_BACKEND_PORT:-9010}:${CARE_BACKEND_PORT:-9010}"
     restart: always
