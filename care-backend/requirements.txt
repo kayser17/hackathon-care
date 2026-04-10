@@ -7,3 +7,5 @@ requests>=2.32.3
 sqlalchemy>=2.0.38
 asyncpg
 python-multipart>=0.0.9
+torch>=2.0.0
+transformers>=5.0.0
