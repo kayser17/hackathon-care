@@ -48,13 +48,13 @@ Return ONLY a JSON object with the following structure:
 }
 """
 
-PROMPT_TEMPLATE = """
+PROMPT_TEMPLATE ="""
 Conversation:
 
 {conversation}
 
 Metrics:
-{
+'{
   "toxicity": 0.68,
   "insult_score": 0.72,
   "emotion": {
@@ -69,7 +69,7 @@ Metrics:
   "activity_anomaly": 0.6,
   "distress_signal": 0.55,
   "confidence": 0.78
-}
+}'
 
 Last report:
 {last_report}
