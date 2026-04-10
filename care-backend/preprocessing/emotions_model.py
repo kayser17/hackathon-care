@@ -22,9 +22,16 @@ def predict_emotions(text: str, threshold: float = 0.3) -> list[tuple[str, float
 
 
 def predict_emotion_scores(text: str) -> dict[str, float]:
+    return predict_emotion_scores_batch([text])[0]
+
+
+def predict_emotion_scores_batch(texts: list[str]) -> list[dict[str, float]]:
+    if not texts:
+        return []
+
     tokenizer, model, device = get_emotion_components()
     inputs = tokenizer(
-        text,
+        texts,
         return_tensors="pt",
         truncation=True,
         padding=True,
@@ -33,17 +40,22 @@ def predict_emotion_scores(text: str) -> dict[str, float]:
 
     with torch.no_grad():
         logits = model(**inputs).logits
-        probabilities = torch.sigmoid(logits)[0].detach().cpu().tolist()
+        probabilities = torch.sigmoid(logits).detach().cpu().tolist()
 
     labels = {
         int(index): str(label).lower()
         for index, label in model.config.id2label.items()
     }
-    return {
-        labels[index]: float(score)
-        for index, score in enumerate(probabilities)
-        if index in labels
-    }
+    results: list[dict[str, float]] = []
+    for row in probabilities:
+        results.append(
+            {
+                labels[index]: float(score)
+                for index, score in enumerate(row)
+                if index in labels
+            }
+        )
+    return results
 
 
 if __name__ == "__main__":

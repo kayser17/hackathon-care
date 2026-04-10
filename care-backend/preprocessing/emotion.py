@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from statistics import mean
 
-from .emotions_model import predict_emotion_scores
+from .emotions_model import predict_emotion_scores_batch
 from .schemas import EmotionMetrics, NormalizedMessage
 
 
@@ -14,9 +14,11 @@ def score_emotions(messages: list[NormalizedMessage]) -> EmotionMetrics:
         return EmotionMetrics()
 
     scores_by_emotion: dict[str, list[float]] = {emotion: [] for emotion in TARGET_EMOTIONS}
+    predicted_scores_batch = predict_emotion_scores_batch(
+        [message.normalized_text for message in messages]
+    )
 
-    for message in messages:
-        predicted_scores = predict_emotion_scores(message.normalized_text)
+    for predicted_scores in predicted_scores_batch:
         for emotion in TARGET_EMOTIONS:
             scores_by_emotion[emotion].append(float(predicted_scores.get(emotion, 0.0)))
 
