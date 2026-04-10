@@ -36,7 +36,8 @@ def score_toxicity(
 
     with torch.no_grad():
         outputs = model(**inputs)
-        probabilities = torch.sigmoid(outputs.logits).squeeze(-1).detach().cpu().tolist()
+        probs = torch.softmax(outputs.logits, dim=-1)
+        probabilities = probs[:, 1].detach().cpu().tolist()
 
     scores = [float(score) for score in probabilities]
     toxic_ratio = sum(score >= toxic_threshold for score in scores) / len(scores)
