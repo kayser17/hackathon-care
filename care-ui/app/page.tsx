@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 type NotificationState = "desconocido" | "granted" | "denied" | "unsupported";
-type RiskLevel = "high" | "medium" | "low";
+type RiskLevel = "critical" | "high" | "medium" | "none" | "low";
 type SessionRole = "guardian" | "child";
+type DetectedConcern = "bullying" | "grooming";
 
 type Alert = {
   id: string;
@@ -80,6 +81,10 @@ type RecommendationBlock = {
   title: string;
   intro: string;
   steps: string[];
+  sections?: {
+    title: string;
+    items: string[];
+  }[];
   avoid?: string[];
   cta?: string;
 };
@@ -88,54 +93,204 @@ const NOTIFICATION_PROMPT_KEY = "care-notification-prompt-seen";
 
 const initialDashboard: ParentDashboard = {
   teenName: "Sofia Martinez",
-  updatedAt: "Hoy, 09:12",
+  updatedAt: "hoy, 20:53",
   riskScore: 78,
-  riskLabel: "Alerta prioritaria",
+  riskLabel: "Atención prioritaria",
   summary:
-    "El sistema detecta senales consistentes con aislamiento social, tristeza sostenida y comentarios de rechazo en un chat reciente.",
+    "Se han identificado señales compatibles con malestar emocional y cambios en la interacción social.",
   llmAnswer:
-    "El analisis del caso sugiere un riesgo emocional creciente. Se observan expresiones de desesperanza, retirada del grupo y una interaccion repetida donde el menor recibe mensajes descalificadores.",
+    "Se observan cambios en el comportamiento social y señales de malestar emocional reciente.",
   alerts: [{ id: "a1", title: "Malestar emocional elevado", detail: "Lenguaje de tristeza sostenida.", level: "high" }],
   metrics: [
-    { label: "Bienestar emocional", value: "Requiere atencion", helper: "Se observan senales de malestar reciente" },
-    { label: "Interaccion social", value: "Cambios detectados", helper: "Puede haber aislamiento o conflicto relacional" },
-    { label: "Nivel de seguimiento", value: "Alto", helper: "Se recomienda observacion cercana" },
-    { label: "Estado del caso", value: "En revision", helper: "Se actualizara si hay cambios relevantes" },
+    { label: "Bienestar emocional", value: "Requiere atención", helper: "Se observan señales de malestar reciente" },
+    { label: "Interacción social", value: "Cambios detectados", helper: "Puede haber aislamiento o conflicto relacional" },
   ],
   nextSteps: [
-    "Hablar con Sofia Martinez hoy en un entorno privado y sin confrontacion.",
-    "Registrar cambios de sueno, apetito o aislamiento durante esta semana.",
+    "Hablar hoy en un momento tranquilo y sin interrupciones.",
+    "Contactar con el centro para coordinar el seguimiento.",
   ],
-  timeline: [{ id: "t1", time: "08:41", title: "Escalada verbal", detail: "Aparecen senales repetidas de rechazo social." }],
+  timeline: [{ id: "t1", time: "20:53", title: "Señales recientes", detail: "Aparecen cambios de interacción social y malestar emocional." }],
 };
 
 function riskTone(level: RiskLevel) {
-  if (level === "high") return "critical";
-  if (level === "medium") return "warning";
-  return "calm";
+  if (level === "critical") return "critical";
+  if (level === "high") return "high";
+  if (level === "medium") return "medium";
+  return "none";
 }
 
 function getRiskLevelFromScore(score: number): RiskLevel {
+  if (score >= 90) return "critical";
   if (score >= 75) return "high";
   if (score >= 45) return "medium";
-  return "low";
+  return "none";
 }
 
-function getParentRecommendations(level: RiskLevel): RecommendationBlock {
-  if (level === "high") {
+function getRiskLevelLabel(level: RiskLevel) {
+  if (level === "critical") return "CRÍTICO";
+  if (level === "high") return "ALTO";
+  if (level === "medium") return "MEDIO";
+  return "SIN RIESGO";
+}
+
+function getDetectedConcern(dashboard: ParentDashboard): DetectedConcern {
+  const text = [
+    dashboard.summary,
+    dashboard.llmAnswer,
+    dashboard.riskLabel,
+    ...dashboard.alerts.flatMap((alert) => [alert.title, alert.detail]),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    text.includes("grooming") ||
+    text.includes("manipul") ||
+    text.includes("pedofil") ||
+    text.includes("sexual") ||
+    text.includes("abuso") ||
+    text.includes("explotacion") ||
+    text.includes("chantaje") ||
+    text.includes("imagen")
+  ) {
+    return "grooming";
+  }
+
+  return "bullying";
+}
+
+function getParentRecommendations(level: RiskLevel, concern: DetectedConcern): RecommendationBlock {
+  if (concern === "grooming") {
+    if (level === "critical" || level === "high") {
+      return {
+        title: "Prioridad de seguridad",
+        intro: "No confrontes ni alarmes. Habla con calma, protege, guarda evidencias y busca apoyo especializado si aparecen indicios serios.",
+        steps: [
+          "Revisa si hay peligro inmediato. Si puede necesitar ayuda ahora, no la dejes sola y busca apoyo urgente.",
+          "No contactes con la persona sospechosa ni reveles la alerta como si fuera una prueba definitiva.",
+          "Habla en un momento tranquilo con preguntas abiertas y sin acusar.",
+          "Guarda informacion relevante: fechas, nombres, plataformas, mensajes y frases textuales sin manipular pruebas.",
+          "Busca apoyo especializado en proteccion de menores, psicologia, centro sanitario o fuerzas de seguridad si procede.",
+          "Refuerza privacidad, limita contactos preocupantes y conserva evidencias sin romper la confianza.",
+        ],
+        sections: [
+          {
+            title: "Como iniciar la conversacion",
+            items: [
+              "Te creo.",
+              "No es tu culpa.",
+              "Gracias por contarmelo.",
+              "Estoy contigo.",
+              "Vamos a ayudarte a estar segura.",
+              "Lo importante ahora es que estes segura.",
+            ],
+          },
+        ],
+        avoid: [
+          "No digas que una aplicacion lo ha detectado.",
+          "No la interrogues como si fuera una investigacion policial.",
+          "No la hagas repetir el relato varias veces.",
+          "No enfrentes a terceros sin orientacion.",
+          "No esperes a ver si se pasa si hay indicios serios.",
+        ],
+      };
+    }
+
+    if (level === "medium") {
+      return {
+        title: "Revisar con calma",
+        intro: "Hay senales que conviene aclarar sin alarmar y sin convertir la conversacion en una investigacion.",
+        steps: [
+          "Comprueba primero si necesita ayuda inmediata.",
+          "Abre una conversacion general sin mencionar la alerta.",
+          "Haz preguntas abiertas sobre si se siente segura o si alguien la incomoda o presiona.",
+          "Escucha sin interrumpir y valida lo que diga con calma.",
+          "Anota informacion relevante y no borres ni manipules mensajes.",
+          "Valora si hay contacto con un posible agresor, intercambio de imagenes, chantaje, amenazas o intento de encuentro.",
+        ],
+        sections: [
+          {
+            title: "Puedes decir",
+            items: [
+              "Te noto preocupada ultimamente y quiero saber como estas.",
+              "Si hay algo que te hace sentir mal o incomoda, puedes contarmelo.",
+              "No tienes que decirme todo ahora, solo quiero ayudarte.",
+            ],
+          },
+        ],
+        avoid: [
+          "No reacciones en caliente.",
+          "No digas que sabes lo que pasa.",
+          "No contactes de inmediato con una posible persona sospechosa.",
+        ],
+      };
+    }
+
     return {
-      title: "Atencion prioritaria",
-      intro: "Se recomienda seguimiento cercano.",
+      title: "Acompanamiento preventivo",
+      intro: "Por ahora conviene observar, hablar con calma y reforzar seguridad digital sin invadir.",
       steps: [
-        "Habla con tu hijo o hija hoy, en calma y en privado.",
-        "Escucha primero y evita una conversacion centrada en culpa o vigilancia.",
-        "Observa si hay aislamiento, tristeza sostenida o cambios bruscos de conducta.",
-        "Contacta con orientacion o apoyo profesional si el malestar persiste o aumenta.",
+        "Elige un momento tranquilo para preguntar como esta.",
+        "Usa preguntas abiertas sobre bienestar, seguridad y personas que puedan incomodarla.",
+        "Escucha sin presionar ni pedir detalles innecesarios.",
+        "Revisa de forma discreta privacidad, contactos y configuraciones si hace falta.",
+      ],
+      sections: [
+        {
+          title: "Preguntas abiertas",
+          items: [
+            "Hay algo en tu entorno que te este molestando?",
+            "Te sientes segura con las personas con las que hablas?",
+            "Hay alguien que te haga sentir incomoda o te presione?",
+          ],
+        },
       ],
       avoid: [
-        "No confrontes con enfado.",
-        "No revises todo su contenido privado como primera respuesta.",
-        "No minimices lo que esta sintiendo.",
+        "No reveles la alerta como prueba.",
+        "No conviertas la conversacion en un interrogatorio.",
+      ],
+    };
+  }
+
+  if (level === "critical" || level === "high") {
+    return {
+      title: "Atención prioritaria",
+      intro: "Actúa con calma. Escuchar y acompañar es más importante que reaccionar rápido.",
+      steps: [
+        "Habla hoy en un momento tranquilo y sin interrupciones.",
+        "Empieza con señales suaves, sin presionar ni juzgar.",
+        "Haz preguntas abiertas sobre su día, relaciones y emociones.",
+        "Valida lo que diga y transmite apoyo.",
+        "Si confirma una situación, registra lo ocurrido con calma.",
+        "Contacta con el centro para coordinar el seguimiento.",
+      ],
+      sections: [
+        {
+          title: "Cómo iniciar la conversación",
+          items: [
+            "Te noto diferente y me preocupa como estas.",
+            "No tienes que contarmelo todo ahora.",
+            "Estoy aquí para escucharte.",
+            "Te creo.",
+            "No es tu culpa.",
+            "Vamos a buscar ayuda juntos.",
+          ],
+        },
+        {
+          title: "Si necesitas hablar con el centro",
+          items: [
+            "Mi hija está viviendo una situación preocupante.",
+            "Necesitamos revisar qué medidas de protección pueden activarse.",
+            "Queremos saber cómo se va a hacer seguimiento.",
+          ],
+        },
+      ],
+      avoid: [
+        "No digas que seguro exagera.",
+        "No minimices como cosas de niños.",
+        "No reacciones con rabia delante de ella.",
+        "No la enfrentes directamente al agresor sin plan.",
+        "No conviertas la conversacion en un interrogatorio.",
       ],
     };
   }
@@ -143,31 +298,68 @@ function getParentRecommendations(level: RiskLevel): RecommendationBlock {
   if (level === "medium") {
     return {
       title: "Atencion recomendada",
-      intro: "Se han detectado senales que conviene abordar pronto.",
+      intro: "Conviene abrir conversacion con suavidad, observar cambios y dejar espacio para que hable a su ritmo.",
       steps: [
-        "Busca hoy o manana un momento tranquilo para hablar.",
-        "Pregunta como se esta sintiendo sin presionar.",
-        "Observa cambios en animo, sueno, energia o relaciones.",
-        "Manten una revision cercana durante los proximos dias.",
+        "Observa cambios como rechazo a ir al colegio, tristeza, irritabilidad, silencio, perdida de objetos o cambios de sueno.",
+        "Elige un momento comodo: un paseo, la vuelta del cole, la cena o un rato sin pantallas.",
+        "Abre con frases suaves y evita decir directamente que sabes que hay bullying.",
+        "Usa preguntas abiertas y no la bombardees si responde poco.",
+        "Si cuenta algo, escucha sin interrumpir y valida lo que diga.",
+        "Si se cierra, no fuerces. Deja la puerta abierta y vuelve a intentarlo otro dia.",
+      ],
+      sections: [
+        {
+          title: "Puedes decir",
+          items: [
+            "Te noto un poco distinta ultimamente.",
+            "Si hay algo que te preocupa, puedes contarmelo.",
+            "No hace falta que me lo cuentes todo ahora, pero quiero que sepas que estoy contigo.",
+            "Si algo te hace sentir mal, no tienes que llevarlo sola.",
+          ],
+        },
+        {
+          title: "Preguntas abiertas",
+          items: [
+            "Hay algo que te este molestando en clase o en internet?",
+            "Con quien te sientes bien en el cole?",
+            "Hay algun momento del dia que se te haga dificil?",
+            "Ha pasado algo con algun companero o companera?",
+          ],
+        },
       ],
       avoid: [
-        "No conviertas la conversacion en un interrogatorio.",
-        "No reacciones con castigos inmediatos.",
+        "No la culpes por no haberlo contado antes.",
+        "No obligues a hablar en ese momento.",
+        "No prometas que lo vas a arreglar enseguida sin entender bien lo que pasa.",
       ],
-      cta: "Ver recursos de apoyo",
     };
   }
 
   return {
     title: "Seguimiento preventivo",
-    intro: "Por ahora se recomienda observacion tranquila y apoyo cercano.",
+    intro: "Por ahora se recomienda entender sin invadir y mantener una puerta abierta para hablar.",
     steps: [
-      "Manten una conversacion abierta y tranquila.",
-      "Observa cambios emocionales o sociales durante la semana.",
-      "Refuerza rutinas, descanso y apoyo familiar.",
-      "Revisa la app si aparecen nuevas actualizaciones.",
+      "Observa cambios de animo, sueno, ganas de ir al colegio, dolores frecuentes o perdida de objetos.",
+      "Busca un momento tranquilo y cotidiano para hablar.",
+      "Empieza con una frase suave y no acusatoria.",
+      "Si no quiere hablar, respeta el ritmo y vuelve a intentarlo otro dia.",
     ],
-    cta: "Ver consejos de acompanamiento",
+    sections: [
+      {
+        title: "Entrada indirecta",
+        items: [
+          "Que te parece lo que le pasa a ese personaje?",
+          "Crees que eso ocurre en la vida real?",
+          "A ti te ha pasado sentirte asi alguna vez?",
+          "Si te pasara algo asi, te gustaria contarmelo?",
+        ],
+      },
+    ],
+    avoid: [
+      "No lo minimices.",
+      "No la interrogues.",
+      "No la fuerces a hablar en ese momento.",
+    ],
   };
 }
 
@@ -225,7 +417,6 @@ async function showRiskNotification(payload: ParentDashboard) {
 
 function ParentPortal({
   dashboard,
-  guardianName,
   notificationState,
   showNotificationPrompt,
   onEnableNotifications,
@@ -233,7 +424,6 @@ function ParentPortal({
   onLogout,
 }: {
   dashboard: ParentDashboard;
-  guardianName: string;
   notificationState: NotificationState;
   showNotificationPrompt: boolean;
   onEnableNotifications: () => void;
@@ -241,8 +431,9 @@ function ParentPortal({
   onLogout: () => void;
 }) {
   const currentRiskLevel = getRiskLevelFromScore(dashboard.riskScore);
-  const recommendationBlock = getParentRecommendations(currentRiskLevel);
-
+  const detectedConcern = getDetectedConcern(dashboard);
+  const recommendationBlock = getParentRecommendations(currentRiskLevel, detectedConcern);
+  const displayTeenName = dashboard.teenName === "Sofia Martinez" ? "Sofía Martínez" : dashboard.teenName;
   return (
     <>
       {showNotificationPrompt ? (
@@ -251,7 +442,7 @@ function ParentPortal({
             <p className="eyebrow">Avisos importantes</p>
             <h2 id="notification-prompt-title">Activa las notificaciones</h2>
             <p>
-              CareNest puede enviarte avisos cuando detecte cambios relevantes en el seguimiento de Sofia Martinez.
+              CareNest puede enviarte avisos cuando detecte cambios relevantes en el seguimiento de {displayTeenName}.
             </p>
             {notificationState === "unsupported" ? (
               <p>En iPhone, abre CareNest como app instalada en la pantalla de inicio para habilitar Web Push.</p>
@@ -277,25 +468,25 @@ function ParentPortal({
         <div>
           <p className="app-kicker">CareNest</p>
           <h1>Seguimiento familiar</h1>
-          <p className="topbar-subtitle">Consulta el estado actual y las recomendaciones de acompanamiento.</p>
+          <p className="topbar-subtitle">Consulta el estado actual y qué hacer en cada momento.</p>
         </div>
       </header>
 
       <section className="hero">
         <div>
           <p className="eyebrow">Estado actual</p>
-          <h2>{recommendationBlock.title}</h2>
+          <h2>Atención prioritaria</h2>
           <p className="hero-copy">
-            {recommendationBlock.intro}
+            Se han detectado señales que requieren seguimiento cercano hoy.
           </p>
           <div className="hero-meta">
-            <span>Ultima actualizacion: {dashboard.updatedAt}</span>
+            <span>Última actualización: {dashboard.updatedAt}</span>
           </div>
         </div>
-        <div className="hero-score">
-          <span>Nivel de atencion</span>
-          <strong>{currentRiskLevel === "high" ? "Alto" : currentRiskLevel === "medium" ? "Medio" : "Bajo"}</strong>
-          <small>Seguimiento activo para Sofia Martinez</small>
+        <div className={`hero-score risk-box-${riskTone(currentRiskLevel)}`}>
+          <span>Nivel de seguimiento</span>
+          <strong>{getRiskLevelLabel(currentRiskLevel)}</strong>
+          <small>Seguimiento activo recomendado</small>
         </div>
       </section>
 
@@ -304,18 +495,16 @@ function ParentPortal({
           <p className="eyebrow">Perfil de seguimiento</p>
           <div className="spotlight-header">
             <div>
-              <h2>{dashboard.teenName}</h2>
-              <p className="timestamp">Ultima actualizacion: {dashboard.updatedAt}</p>
+              <h2>{displayTeenName}</h2>
             </div>
-            <div className="spotlight-badge">Atencion prioritaria</div>
+            <div className="spotlight-badge">Atención prioritaria</div>
           </div>
           <p className="summary">{dashboard.summary}</p>
         </article>
 
         <article className="card parent-card-observations">
-          <p className="eyebrow">Que estamos observando</p>
+          <p className="eyebrow">Qué estamos observando</p>
           <div className="section-heading">
-            <h2>Senales detectadas</h2>
             <p>{dashboard.llmAnswer}</p>
           </div>
           <div className="signal-chip-list">
@@ -324,23 +513,23 @@ function ParentPortal({
                 {alert.title.replace("Distress", "Malestar")}
               </span>
             ))}
-          </div>
-          <div className="metric-grid parent-metric-grid">
             {dashboard.metrics.map((metric) => (
-              <section key={metric.label} className="metric-card">
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-                <small>{metric.helper}</small>
-              </section>
+              <span key={metric.label} className="signal-chip">
+                {metric.label} → {metric.value}
+              </span>
             ))}
           </div>
         </article>
 
         <div className="parent-side-stack">
-          <article className={`card card-guidance guidance-${currentRiskLevel}`}>
-            <p className="eyebrow">Que hacer ahora</p>
-            <div className="section-heading">
-              <h2>{recommendationBlock.title}</h2>
+          <details className={`card card-guidance guidance-${currentRiskLevel} parent-disclosure`}>
+            <summary>
+              <span className="eyebrow">Qué puedes hacer ahora</span>
+              <span className="disclosure-title">Pasos recomendados para acompañar la situación.</span>
+            </summary>
+
+            <div className="section-heading guidance-priority">
+              <p className="mini-heading">{recommendationBlock.title}</p>
               <p>{recommendationBlock.intro}</p>
             </div>
 
@@ -353,9 +542,20 @@ function ParentPortal({
               ))}
             </ul>
 
+            {recommendationBlock.sections?.map((section) => (
+              <div className="guidance-section" key={section.title}>
+                <h3>{section.title}</h3>
+                <ul>
+                  {section.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
             {recommendationBlock.avoid?.length ? (
               <div className="guidance-avoid">
-                <h3>Evita esto</h3>
+                <h3>Evita estas reacciones</h3>
                 <ul>
                   {recommendationBlock.avoid.map((item) => (
                     <li key={item}>{item}</li>
@@ -363,14 +563,13 @@ function ParentPortal({
                 </ul>
               </div>
             ) : null}
-          </article>
+          </details>
 
-          <article className="card card-timeline">
-            <p className="eyebrow">Ultimas actualizaciones</p>
-            <div className="section-heading">
-              <h2>Evolucion del caso</h2>
-              <p>Eventos relevantes registrados durante el periodo reciente.</p>
-            </div>
+          <details className="card card-timeline parent-disclosure" id="ultimas-actualizaciones">
+            <summary>
+              <span className="eyebrow">Últimas actualizaciones</span>
+              <span className="disclosure-title">Eventos recientes relacionados con el seguimiento.</span>
+            </summary>
             <div className="timeline">
               {dashboard.timeline.slice(0, 3).map((event) => (
                 <section key={event.id} className="timeline-item">
@@ -382,13 +581,13 @@ function ParentPortal({
                 </section>
               ))}
             </div>
-          </article>
+          </details>
         </div>
       </section>
 
       <footer className="parent-footer">
         <button type="button" className="text-button" onClick={onLogout}>
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </footer>
     </>
@@ -415,12 +614,10 @@ function LoginScreen({
   return (
     <section className="login-shell">
       <div className="login-brand">
-        <img src="/icon.svg" alt="CareNest" className="login-logo" />
-        <p className="login-name">CareNest</p>
+        <img src="/logo.png" alt="CareNest" className="login-logo" />
       </div>
 
       <article className="card login-card">
-        <p className="eyebrow">Acceso</p>
         <h2>Iniciar sesion</h2>
         <p className="hero-copy">Accede con tus credenciales para continuar.</p>
         <form className="login-form" onSubmit={onSubmit}>
@@ -443,6 +640,10 @@ function LoginScreen({
           </button>
         </form>
       </article>
+
+      <footer className="login-footer">
+        <p>Copyright (c) 2026 CareNest. Todos los derechos reservados.</p>
+      </footer>
     </section>
   );
 }
@@ -779,8 +980,8 @@ export default function HomePage() {
   }
 
   return (
-    <main className="dashboard-shell">
-      <div className="app-frame">
+    <main className={`dashboard-shell ${!selectedSession ? "login-page-shell" : ""}`}>
+      <div className={`app-frame ${!selectedSession ? "login-page-frame" : ""}`}>
         {!selectedSession ? (
           <LoginScreen
             email={email}
@@ -794,7 +995,6 @@ export default function HomePage() {
         ) : (
           <ParentPortal
             dashboard={dashboard}
-            guardianName={selectedSession.displayName}
             notificationState={notificationState}
             showNotificationPrompt={showNotificationPrompt}
             onEnableNotifications={handleEnableNotifications}
