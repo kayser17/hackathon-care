@@ -19,8 +19,8 @@ from backend.analysis_orchestrator import analyze_chunk
 
 logger = logging.getLogger("care.api")
 
-CHUNK_SIZE_MESSAGES = int(os.getenv("CHUNK_SIZE_MESSAGES", "4"))
-CHUNK_WINDOW_SECONDS = int(os.getenv("CHUNK_WINDOW_SECONDS", "300"))
+CHUNK_SIZE_MESSAGES = int(os.getenv("CHUNK_SIZE_MESSAGES", "20"))
+CHUNK_WINDOW_SECONDS = int(os.getenv("CHUNK_WINDOW_SECONDS", "7200"))
 
 
 class PacienteCreate(BaseModel):
@@ -136,52 +136,72 @@ class ChildChatViewOut(BaseModel):
     messages: list[ChildChatMessageOut]
 
 
-class MessageAccumulator:
-    """Buffers chat messages per conversation until a chunk threshold is reached."""
+class ConversationBufferManager:
+    """Ephemeral raw-message store for not-yet-analyzed messages only."""
 
     def __init__(self) -> None:
         self._buffers: dict[str, list[dict[str, Any]]] = {}
         self._first_ts: dict[str, datetime] = {}
+        self._lock = asyncio.Lock()
 
-    def append(self, conversation_id: str, message: dict[str, Any]) -> None:
-        self._buffers.setdefault(conversation_id, []).append(message)
-        if conversation_id not in self._first_ts:
-            self._first_ts[conversation_id] = datetime.now(timezone.utc)
+    async def append(self, conversation_id: str, message: dict[str, Any]) -> int:
+        async with self._lock:
+            self._buffers.setdefault(conversation_id, []).append(message)
+            if conversation_id not in self._first_ts:
+                self._first_ts[conversation_id] = _coerce_timestamp(
+                    message.get("timestamp"),
+                    default=datetime.now(timezone.utc),
+                )
+            return len(self._buffers[conversation_id])
 
-    def should_flush(self, conversation_id: str) -> bool:
-        msgs = self._buffers.get(conversation_id, [])
-        if len(msgs) >= CHUNK_SIZE_MESSAGES:
-            return True
-        first = self._first_ts.get(conversation_id)
-        if first and (datetime.now(timezone.utc) - first).total_seconds() >= CHUNK_WINDOW_SECONDS:
-            return len(msgs) > 0
-        return False
+    async def should_flush_count(self, conversation_id: str) -> bool:
+        async with self._lock:
+            return len(self._buffers.get(conversation_id, [])) >= CHUNK_SIZE_MESSAGES
 
-    def flush(self, conversation_id: str) -> list[dict[str, Any]]:
-        msgs = self._buffers.pop(conversation_id, [])
-        self._first_ts.pop(conversation_id, None)
-        return msgs
+    async def should_flush_time(self, conversation_id: str, *, now: datetime | None = None) -> bool:
+        async with self._lock:
+            first = self._first_ts.get(conversation_id)
+            if first is None:
+                return False
+            current_time = now or datetime.now(timezone.utc)
+            return (current_time - first).total_seconds() >= CHUNK_WINDOW_SECONDS
 
-    def peek(self, conversation_id: str) -> list[dict[str, Any]]:
-        return list(self._buffers.get(conversation_id, []))
+    async def flush(self, conversation_id: str) -> list[dict[str, Any]]:
+        async with self._lock:
+            messages = self._buffers.pop(conversation_id, [])
+            self._first_ts.pop(conversation_id, None)
+            return messages
 
-    def count(self, conversation_id: str) -> int:
-        return len(self._buffers.get(conversation_id, []))
+    async def due_conversations(self, *, now: datetime | None = None) -> list[str]:
+        async with self._lock:
+            current_time = now or datetime.now(timezone.utc)
+            return [
+                conversation_id
+                for conversation_id, first_seen in self._first_ts.items()
+                if (current_time - first_seen).total_seconds() >= CHUNK_WINDOW_SECONDS
+            ]
+
+    async def count(self, conversation_id: str) -> int:
+        async with self._lock:
+            return len(self._buffers.get(conversation_id, []))
 
 
 DEMO_CHAT_MESSAGES = [
-    {"sender_key": "child_1", "text": "Nadie te quiere en nuestro grupo.", "sentAt": "17:34"},
-    {"sender_key": "child_2", "text": "Para ya, no te he hecho nada.", "sentAt": "17:35"},
-    {"sender_key": "child_1", "text": "Das pena, siempre molestas y caes fatal.", "sentAt": "17:36"},
-    {"sender_key": "child_2", "text": "Me estas haciendo sentir fatal.", "sentAt": "17:37"},
-    {"sender_key": "child_1", "text": "Pues vete, mejor si no apareces manana.", "sentAt": "17:38"},
-    {"sender_key": "child_2", "text": "No quiero ir al cole por tu culpa.", "sentAt": "17:39"},
+    {"sender_key": "child_1", "text": "No te sientes con nosotros en el recreo, nadie te quiere en el equipo.", "sentAt": "17:34"},
+    {"sender_key": "child_2", "text": "Que te pasa? Solo queria jugar con vosotros.", "sentAt": "17:35"},
+    {"sender_key": "child_1", "text": "Siempre arruinas todo y luego te haces la victima.", "sentAt": "17:36"},
+    {"sender_key": "child_2", "text": "Llevas dias diciendome eso, ya para.", "sentAt": "17:37"},
+    {"sender_key": "child_1", "text": "Si vienes manana tambien te vamos a dejar sola.", "sentAt": "17:38"},
+    {"sender_key": "child_2", "text": "No entiendo por que me tratas asi.", "sentAt": "17:39"},
+    {"sender_key": "child_1", "text": "Porque nadie te aguanta, mejor ni vengas.", "sentAt": "17:40"},
+    {"sender_key": "child_2", "text": "Entre tus mensajes y lo de clase me haces sentir fatal.", "sentAt": "17:41"},
 ]
 
 DEMO_CHILD_EMAILS = {
     "child_1": "diego.ramos@care.local",
     "child_2": "sofia.martinez@care.local",
 }
+
 
 SCHEMA_PATH = Path(__file__).resolve().with_name("init.sql")
 if not SCHEMA_PATH.exists():
@@ -228,7 +248,7 @@ async def upsert_user(pool: asyncpg.Pool, display_name: str, email: str, passwor
     )
 
 
-async def ensure_demo_data(pool: asyncpg.Pool) -> None:
+async def ensure_demo_data(pool: asyncpg.Pool) -> str:
     await pool.execute(
         """
         DELETE FROM users
@@ -248,14 +268,6 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
     guardian_id = guardian["id"]
     child_1_id = child_1["id"]
     child_2_id = child_2["id"]
-
-    await pool.execute(
-        """
-        UPDATE alerts
-        SET title = 'Malestar emocional elevado', updated_at = NOW()
-        WHERE title = 'Distress emocional elevado'
-        """
-    )
 
     await pool.execute(
         """
@@ -322,17 +334,44 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             child_2_id,
         )
 
-    existing_alert = await pool.fetchval(
+    await pool.execute(
         """
-        SELECT a.id
-        FROM alerts a
-        WHERE a.child_user_id = $1
-        LIMIT 1
+        DELETE FROM alert_recipients
+        WHERE alert_id IN (
+            SELECT id FROM alerts WHERE child_user_id = $1
+        )
         """,
         child_2_id,
     )
-    if existing_alert is not None:
-        return
+    await pool.execute("DELETE FROM alerts WHERE child_user_id = $1", child_2_id)
+    await pool.execute(
+        """
+        DELETE FROM risk_assessments
+        WHERE chunk_id IN (
+            SELECT id FROM conversation_chunks WHERE conversation_id = $1
+        )
+        """,
+        conversation_id,
+    )
+    await pool.execute(
+        """
+        DELETE FROM chunk_summaries
+        WHERE chunk_id IN (
+            SELECT id FROM conversation_chunks WHERE conversation_id = $1
+        )
+        """,
+        conversation_id,
+    )
+    await pool.execute(
+        """
+        DELETE FROM chunk_metrics
+        WHERE chunk_id IN (
+            SELECT id FROM conversation_chunks WHERE conversation_id = $1
+        )
+        """,
+        conversation_id,
+    )
+    await pool.execute("DELETE FROM conversation_chunks WHERE conversation_id = $1", conversation_id)
 
     chunk = await pool.fetchrow(
         """
@@ -346,8 +385,8 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         VALUES (
             $1,
             NOW() - INTERVAL '18 minutes',
-            NOW() - INTERVAL '4 minutes',
-            16,
+            NOW() - INTERVAL '10 minutes',
+            8,
             'processed'
         )
         RETURNING id
@@ -376,21 +415,20 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         )
         VALUES (
             $1,
-            0.6800,
-            0.7200,
-            0.8100,
-            0.8500,
-            0.9000,
-            0.6000,
-            0.5500,
-            0.7800,
+            0.8400,
+            0.8800,
+            0.4200,
+            0.9100,
+            0.8700,
+            0.4100,
+            0.7600,
+            0.9300,
             'increasing',
-            0.6000,
-            0.5000,
-            0.3000,
-            'demo-v1'
+            0.6300,
+            0.7900,
+            0.7100,
+            'demo-v2'
         )
-        ON CONFLICT (chunk_id) DO NOTHING
         """,
         chunk_id,
     )
@@ -400,11 +438,10 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         INSERT INTO chunk_summaries (chunk_id, summary_text, model_name, prompt_version)
         VALUES (
             $1,
-            'Se observan expresiones de rechazo social, retirada del grupo y aumento del malestar emocional en el periodo reciente.',
+            'Se observa un patron de acoso relacional: Diego excluye y humilla a Sofia de forma repetida, mientras ella expresa cansancio emocional, confusion y rechazo a seguir exponiendose.',
             'gpt-4o-mini',
             'risk-monitor-v1'
         )
-        ON CONFLICT (chunk_id) DO NOTHING
         """,
         chunk_id,
     )
@@ -424,9 +461,9 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             $1,
             'bullying',
             'high',
-            0.7800,
-            0.7800,
-            'Alta intensidad de insulto, focalizacion repetida y tono de tristeza creciente.',
+            0.9100,
+            0.9300,
+            'Insultos repetidos, amenaza de exclusion social y respuestas de tristeza y evitacion por parte de Sofia.',
             'gpt-4o-mini'
         )
         RETURNING id
@@ -455,8 +492,8 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
             $4,
             'bullying',
             'critical',
-            'Malestar emocional elevado',
-            'Se detecta un patron compatible con acoso relacional y aumento del malestar emocional.',
+            'Acoso relacional sostenido',
+            'Se detecta exclusion, humillacion repetida y un impacto emocional alto en Sofia durante una conversacion reciente.',
             'open'
         )
         RETURNING id
@@ -477,6 +514,9 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
         guardian_id,
     )
 
+    logger.info("Demo scenario ensured for conversation %s", conversation_id)
+    return str(conversation_id)
+
 
 def build_default_dashboard() -> ParentDashboard:
     return ParentDashboard(
@@ -488,10 +528,10 @@ def build_default_dashboard() -> ParentDashboard:
         llmAnswer="",
         alerts=[],
         metrics=[
-            MetricItem(label="Bienestar emocional", value="Sin datos", helper="Se actualizara con la primera conversacion"),
-            MetricItem(label="Interaccion social", value="Sin datos", helper="Se actualizara con la primera conversacion"),
-            MetricItem(label="Nivel de seguimiento", value="Sin datos", helper="Se actualizara con la primera conversacion"),
-            MetricItem(label="Estado del caso", value="Sin datos", helper="Se actualizara con la primera conversacion"),
+            MetricItem(label="Toxicidad estimada", value="Sin datos", helper="Se actualizara con la primera conversacion analizada"),
+            MetricItem(label="Focalizacion en el menor", value="Sin datos", helper="Se actualizara al detectar patron entre participantes"),
+            MetricItem(label="Malestar emocional", value="Sin datos", helper="Se actualizara con la primera conversacion analizada"),
+            MetricItem(label="Confianza del analisis", value="Sin datos", helper="Se actualizara cuando exista un caso procesado"),
         ],
         nextSteps=[],
         timeline=[],
@@ -512,7 +552,7 @@ def assessment_level_to_ui(level: str | None) -> RiskLevel:
         return "high"
     if level == "medium":
         return "medium"
-    return "none"
+    return "low"
 
 
 def alert_type_label(alert_type: str) -> str:
@@ -522,6 +562,48 @@ def alert_type_label(alert_type: str) -> str:
         "distress": "Malestar emocional",
     }
     return mapping.get(alert_type, alert_type)
+
+
+def _coerce_timestamp(value: Any, *, default: datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return default
+    return default
+
+
+async def build_demo_chat_messages(pool: asyncpg.Pool) -> list[ChildChatMessageOut]:
+    rows = await pool.fetch(
+        """
+        SELECT id, display_name, LOWER(email) AS email
+        FROM users
+        WHERE LOWER(email) = ANY($1::text[])
+        """,
+        list(DEMO_CHILD_EMAILS.values()),
+    )
+    users_by_email = {row["email"]: row for row in rows}
+
+    messages: list[ChildChatMessageOut] = []
+    for index, item in enumerate(DEMO_CHAT_MESSAGES, start=1):
+        sender = users_by_email[DEMO_CHILD_EMAILS[item["sender_key"]]]
+        messages.append(
+            ChildChatMessageOut(
+                id=f"demo-msg-{index}",
+                senderId=str(sender["id"]),
+                senderName=sender["display_name"],
+                text=item["text"],
+                sentAt=item["sentAt"],
+            )
+        )
+    return messages
+
+
+def get_chat_store() -> dict[str, list[ChildChatMessageOut]]:
+    return app.state.chat_messages
 
 
 async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) -> ParentDashboard:
@@ -630,9 +712,9 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
     )
 
     next_steps = [
-        "Revisar el resumen del ultimo chunk y confirmar si el patron sigue activo.",
-        "Hablar con el menor en un entorno privado y sin confrontacion.",
-        "Escalar a orientacion o apoyo profesional si aumenta la frecuencia o gravedad.",
+        "Hablar hoy con Sofia en privado, validando lo ocurrido antes de pedir detalles.",
+        "Confirmar si la exclusion y los mensajes se repiten tambien en clase o en otros chats.",
+        "Contactar con tutoria u orientacion si Sofia evita ir al colegio o el patron continua.",
     ]
 
     return ParentDashboard(
@@ -652,10 +734,26 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
             for row in alert_rows
         ],
         metrics=[
-            MetricItem(label="Bienestar emocional", value="Requiere atencion", helper="Se observan senales de malestar reciente"),
-            MetricItem(label="Interaccion social", value="Cambios detectados", helper="Puede haber aislamiento o conflicto relacional"),
-            MetricItem(label="Nivel de seguimiento", value="Alto", helper="Se recomienda observacion cercana"),
-            MetricItem(label="Estado del caso", value="En revision", helper="Se actualizara si hay cambios relevantes"),
+            MetricItem(
+                label="Toxicidad estimada",
+                value=f"{round(metrics_payload['toxicity'] * 100)}%",
+                helper="Lenguaje hostil y descalificador en el ultimo bloque analizado",
+            ),
+            MetricItem(
+                label="Focalizacion en Sofia",
+                value=f"{round(metrics_payload['targeting_intensity'] * 100)}%",
+                helper="La conversacion se concentra en excluir y atacar a una menor concreta",
+            ),
+            MetricItem(
+                label="Malestar emocional",
+                value=f"{round(metrics_payload['distress_signal'] * 100)}%",
+                helper="Las respuestas de Sofia muestran tristeza, agotamiento y evitacion",
+            ),
+            MetricItem(
+                label="Confianza del analisis",
+                value=f"{round(metrics_payload['confidence'] * 100)}%",
+                helper="Alta consistencia entre senales conversacionales y evaluacion final",
+            ),
         ],
         nextSteps=next_steps,
         timeline=[
@@ -669,39 +767,6 @@ async def build_guardian_dashboard(pool: asyncpg.Pool, guardian_user_id: str) ->
         ],
         promptMetrics=metrics_payload,
     )
-
-
-async def seed_child_chat_messages(pool: asyncpg.Pool) -> list[ChildChatMessageOut]:
-    rows = await pool.fetch(
-        """
-        SELECT id, display_name, LOWER(email) AS email
-        FROM users
-        WHERE LOWER(email) = ANY($1::text[])
-        """,
-        list(DEMO_CHILD_EMAILS.values()),
-    )
-    users_by_email = {row["email"]: row for row in rows}
-
-    messages: list[ChildChatMessageOut] = []
-    for index, item in enumerate(DEMO_CHAT_MESSAGES, start=1):
-        sender = users_by_email[DEMO_CHILD_EMAILS[item["sender_key"]]]
-        messages.append(
-            ChildChatMessageOut(
-                id=f"msg-{index}",
-                senderId=str(sender["id"]),
-                senderName=sender["display_name"],
-                text=item["text"],
-                sentAt=item["sentAt"],
-            )
-        )
-    return messages
-
-
-async def get_shared_child_chat_messages(pool: asyncpg.Pool, conversation_id: str) -> list[ChildChatMessageOut]:
-    messages_by_conversation: dict[str, list[ChildChatMessageOut]] = app.state.child_chat_messages
-    if conversation_id not in messages_by_conversation:
-        messages_by_conversation[conversation_id] = []
-    return messages_by_conversation[conversation_id]
 
 
 class AlertHub:
@@ -810,23 +875,28 @@ async def lifespan(app: FastAPI):
 
     app.state.pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
     await ensure_schema(app.state.pool)
+    app.state.chat_messages = {}
     if os.getenv("CARE_SEED_DEMO", "false").lower() in ("1", "true", "yes"):
-        await ensure_demo_data(app.state.pool)
+        conversation_id = await ensure_demo_data(app.state.pool)
+        app.state.chat_messages[conversation_id] = await build_demo_chat_messages(app.state.pool)
         logger.info("Demo seed data loaded (CARE_SEED_DEMO=true)")
     else:
         logger.info("Demo seed skipped (CARE_SEED_DEMO!=true). Set CARE_SEED_DEMO=true to enable.")
     app.state.alert_hub = AlertHub()
     app.state.alert_state = build_default_dashboard()
-    app.state.child_chat_messages = {}
-    app.state.message_accumulator = MessageAccumulator()
+    app.state.message_buffer = ConversationBufferManager()
     app.state.vapid_public_key = os.getenv("CARE_WEB_PUSH_PUBLIC_KEY")
     app.state.vapid_private_key = os.getenv("CARE_WEB_PUSH_PRIVATE_KEY")
     app.state.vapid_subject = os.getenv("CARE_WEB_PUSH_SUBJECT", "mailto:care@example.com")
     app.state.push_enabled = bool(app.state.vapid_public_key and app.state.vapid_private_key)
+    flush_task = asyncio.create_task(_periodic_chunk_flush_loop(app))
 
     try:
         yield
     finally:
+        flush_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await flush_task
         await app.state.pool.close()
 
 
@@ -885,6 +955,50 @@ async def _create_chunk_and_analyze(
             messages=messages,
         )
     )
+
+
+async def _trigger_analysis_for_conversation(
+    conversation_id: str,
+    messages: list[dict[str, Any]],
+) -> list[str]:
+    if not messages:
+        return []
+
+    pool: asyncpg.Pool = app.state.pool
+    child_user_ids = await pool.fetch(
+        """
+        SELECT cp.user_id
+        FROM conversation_participants cp
+        JOIN users u ON u.id = cp.user_id AND u.role = 'child'
+        WHERE cp.conversation_id = $1::uuid
+        """,
+        conversation_id,
+    )
+    triggered: list[str] = []
+    for child_row in child_user_ids:
+        child_user_id = str(child_row["user_id"])
+        await _create_chunk_and_analyze(
+            conversation_id=conversation_id,
+            child_user_id=child_user_id,
+            messages=messages,
+        )
+        triggered.append(child_user_id)
+    return triggered
+
+
+async def _periodic_chunk_flush_loop(app: FastAPI) -> None:
+    while True:
+        await asyncio.sleep(60)
+        buffer_manager: ConversationBufferManager = app.state.message_buffer
+        due_conversations = await buffer_manager.due_conversations()
+        for conversation_id in due_conversations:
+            messages = await buffer_manager.flush(conversation_id)
+            if not messages:
+                continue
+            try:
+                await _trigger_analysis_for_conversation(conversation_id, messages)
+            except Exception:
+                logger.exception("Failed timed flush for conversation %s", conversation_id)
 
 
 @app.get("/health")
@@ -1054,7 +1168,7 @@ async def get_child_chat_view(user_id: str) -> ChildChatViewOut:
         ChildChatParticipantOut(id=viewer_id, displayName=conversation["viewer_display_name"]),
         ChildChatParticipantOut(id=other_id, displayName=conversation["other_display_name"]),
     ]
-    messages = await get_shared_child_chat_messages(pool, str(conversation["conversation_id"]))
+    messages = list(get_chat_store().get(str(conversation["conversation_id"]), []))
 
     return ChildChatViewOut(
         conversationId=str(conversation["conversation_id"]),
@@ -1099,46 +1213,30 @@ async def send_child_chat_message(user_id: str, payload: ChildChatSendRequest) -
     if not text:
         raise HTTPException(status_code=422, detail="El mensaje no puede estar vacio")
 
-    messages = await get_shared_child_chat_messages(pool, str(conversation_id))
-    messages.append(
+    sent_at = datetime.now(timezone.utc)
+    conv_id_str = str(conversation_id)
+    chat_store = get_chat_store()
+    chat_store.setdefault(conv_id_str, [])
+    chat_store[conv_id_str].append(
         ChildChatMessageOut(
-            id=f"msg-{len(messages) + 1}",
+            id=f"msg-{len(chat_store[conv_id_str]) + 1}",
             senderId=str(sender["id"]),
             senderName=sender["display_name"],
             text=text,
-            sentAt=datetime.now().strftime("%H:%M"),
+            sentAt=sent_at.strftime("%H:%M"),
         )
     )
-
-    # Feed message into the accumulator for pipeline analysis
-    accumulator: MessageAccumulator = app.state.message_accumulator
-    conv_id_str = str(conversation_id)
-    accumulator.append(conv_id_str, {
+    # Feed message into the ephemeral pending buffer for analysis only
+    buffer_manager: ConversationBufferManager = app.state.message_buffer
+    await buffer_manager.append(conv_id_str, {
         "speaker": sender["display_name"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": sent_at.isoformat(),
         "text": text,
     })
 
-    if accumulator.should_flush(conv_id_str):
-        buffered = accumulator.flush(conv_id_str)
-        # Resolve child_user_id: the child who is the target of monitoring
-        # (the "other" participant, or the sender themselves — use all linked children)
-        child_user_ids = await pool.fetch(
-            """
-            SELECT cp.user_id
-            FROM conversation_participants cp
-            JOIN users u ON u.id = cp.user_id AND u.role = 'child'
-            WHERE cp.conversation_id = $1::uuid
-            """,
-            conv_id_str,
-        )
-        # Trigger analysis for each child in the conversation
-        for child_row in child_user_ids:
-            await _create_chunk_and_analyze(
-                conversation_id=conv_id_str,
-                child_user_id=str(child_row["user_id"]),
-                messages=buffered,
-            )
+    if await buffer_manager.should_flush_count(conv_id_str):
+        buffered = await buffer_manager.flush(conv_id_str)
+        await _trigger_analysis_for_conversation(conv_id_str, buffered)
 
     return await get_child_chat_view(user_id)
 
@@ -1155,46 +1253,14 @@ async def publish_alert_state(payload: ParentDashboard) -> AlertEnvelope:
 @app.post("/api/analysis/trigger/{conversation_id}")
 async def trigger_analysis(conversation_id: str) -> dict[str, Any]:
     """Manually trigger analysis on accumulated messages (or all chat messages) for a conversation."""
-    pool: asyncpg.Pool = app.state.pool
-    accumulator: MessageAccumulator = app.state.message_accumulator
-
-    # First try accumulated buffer
-    buffered = accumulator.flush(conversation_id)
-
-    # If no buffered messages, use the in-memory chat messages as fallback
+    buffer_manager: ConversationBufferManager = app.state.message_buffer
+    buffered = await buffer_manager.flush(conversation_id)
     if not buffered:
-        chat_messages = app.state.child_chat_messages.get(conversation_id, [])
-        if not chat_messages:
-            raise HTTPException(status_code=404, detail="No hay mensajes acumulados para esta conversacion")
-        buffered = [
-            {
-                "speaker": msg.senderName,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "text": msg.text,
-            }
-            for msg in chat_messages
-        ]
+        raise HTTPException(status_code=404, detail="No hay mensajes acumulados para esta conversacion")
 
-    child_user_ids = await pool.fetch(
-        """
-        SELECT cp.user_id
-        FROM conversation_participants cp
-        JOIN users u ON u.id = cp.user_id AND u.role = 'child'
-        WHERE cp.conversation_id = $1::uuid
-        """,
-        conversation_id,
-    )
-    if not child_user_ids:
+    triggered = await _trigger_analysis_for_conversation(conversation_id, buffered)
+    if not triggered:
         raise HTTPException(status_code=404, detail="No se encontraron menores en esta conversacion")
-
-    triggered = []
-    for child_row in child_user_ids:
-        await _create_chunk_and_analyze(
-            conversation_id=conversation_id,
-            child_user_id=str(child_row["user_id"]),
-            messages=buffered,
-        )
-        triggered.append(str(child_row["user_id"]))
 
     return {
         "status": "analysis_triggered",
