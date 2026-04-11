@@ -487,6 +487,7 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [showDemoControls, setShowDemoControls] = useState(true);
 
   const demo = useDemoSimulation();
 
@@ -520,6 +521,7 @@ export default function HomePage() {
   function logout() {
     setSelectedSession(null);
     setLoginError("");
+    setShowDemoControls(true);
   }
 
   const currentPhaseTitle = demo.currentPhase?.title ?? "Estado inicial";
@@ -565,18 +567,29 @@ export default function HomePage() {
           )}
         </div>
       </main>
-      <DemoControls
-        status={demo.status}
-        speed={demo.speed}
-        currentPhaseIndex={demo.currentPhaseIndex}
-        totalPhases={demo.totalPhases}
-        currentPhaseTitle={currentPhaseTitle}
-        onStart={demo.start}
-        onPause={demo.pause}
-        onReset={demo.reset}
-        onJumpToPhase={demo.jumpToPhase}
-        onSpeedChange={demo.setSpeed}
-      />
+      {selectedSession?.role === "guardian" ? (
+        <button
+          type="button"
+          className="demo-toggle-button"
+          onClick={() => setShowDemoControls((current) => !current)}
+        >
+          {showDemoControls ? "Ocultar panel demo" : "Mostrar panel demo"}
+        </button>
+      ) : null}
+      {showDemoControls ? (
+        <DemoControls
+          status={demo.status}
+          speed={demo.speed}
+          currentPhaseIndex={demo.currentPhaseIndex}
+          totalPhases={demo.totalPhases}
+          currentPhaseTitle={currentPhaseTitle}
+          onStart={demo.start}
+          onPause={demo.pause}
+          onReset={demo.reset}
+          onJumpToPhase={demo.jumpToPhase}
+          onSpeedChange={demo.setSpeed}
+        />
+      ) : null}
     </>
   );
 }

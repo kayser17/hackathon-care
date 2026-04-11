@@ -1678,6 +1678,22 @@ a.text-button {
   text-decoration: none;
 }
 
+.demo-toggle-button {
+  position: fixed;
+  right: 20px;
+  top: 20px;
+  z-index: 41;
+  border: 1px solid rgba(24, 38, 45, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.94);
+  color: var(--ink);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(19, 38, 47, 0.12);
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   .login-shell {
     min-height: calc(100vh - 96px);
@@ -1767,5 +1783,11 @@ a.text-button {
   .demo-account-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .demo-toggle-button {
+    right: 12px;
+    top: 12px;
+    max-width: calc(100vw - 24px);
   }
 }
