@@ -1,9 +1,10 @@
 import asyncio
 import contextlib
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -14,6 +15,12 @@ from pydantic import BaseModel, Field
 from pywebpush import WebPushException, webpush
 
 from prompts import DEFAULT_PROMPT_METRICS
+from backend.analysis_orchestrator import analyze_chunk
+
+logger = logging.getLogger("care.api")
+
+CHUNK_SIZE_MESSAGES = int(os.getenv("CHUNK_SIZE_MESSAGES", "4"))
+CHUNK_WINDOW_SECONDS = int(os.getenv("CHUNK_WINDOW_SECONDS", "300"))
 
 
 class PacienteCreate(BaseModel):
@@ -127,6 +134,39 @@ class ChildChatViewOut(BaseModel):
     viewerUserId: str
     participants: list[ChildChatParticipantOut]
     messages: list[ChildChatMessageOut]
+
+
+class MessageAccumulator:
+    """Buffers chat messages per conversation until a chunk threshold is reached."""
+
+    def __init__(self) -> None:
+        self._buffers: dict[str, list[dict[str, Any]]] = {}
+        self._first_ts: dict[str, datetime] = {}
+
+    def append(self, conversation_id: str, message: dict[str, Any]) -> None:
+        self._buffers.setdefault(conversation_id, []).append(message)
+        if conversation_id not in self._first_ts:
+            self._first_ts[conversation_id] = datetime.now(timezone.utc)
+
+    def should_flush(self, conversation_id: str) -> bool:
+        msgs = self._buffers.get(conversation_id, [])
+        if len(msgs) >= CHUNK_SIZE_MESSAGES:
+            return True
+        first = self._first_ts.get(conversation_id)
+        if first and (datetime.now(timezone.utc) - first).total_seconds() >= CHUNK_WINDOW_SECONDS:
+            return len(msgs) > 0
+        return False
+
+    def flush(self, conversation_id: str) -> list[dict[str, Any]]:
+        msgs = self._buffers.pop(conversation_id, [])
+        self._first_ts.pop(conversation_id, None)
+        return msgs
+
+    def peek(self, conversation_id: str) -> list[dict[str, Any]]:
+        return list(self._buffers.get(conversation_id, []))
+
+    def count(self, conversation_id: str) -> int:
+        return len(self._buffers.get(conversation_id, []))
 
 
 DEMO_CHAT_MESSAGES = [
@@ -439,76 +479,23 @@ async def ensure_demo_data(pool: asyncpg.Pool) -> None:
 
 
 def build_default_dashboard() -> ParentDashboard:
-    prompt_metrics = DEFAULT_PROMPT_METRICS.copy()
     return ParentDashboard(
-        teenName="Sofia Martinez",
-        updatedAt="Hoy, 09:12",
-        riskScore=78,
-        riskLabel="Alerta prioritaria",
-        summary=(
-            "El sistema detecta senales consistentes con aislamiento social, tristeza "
-            "sostenida y comentarios de rechazo en un chat reciente."
-        ),
-        llmAnswer=(
-            "El analisis del caso sugiere un riesgo emocional creciente. Se observan "
-            "expresiones de desesperanza, retirada del grupo y una interaccion repetida "
-            "donde la menor recibe mensajes descalificadores. La recomendacion es iniciar "
-            "una conversacion calmada hoy mismo, validar como se siente y valorar contacto "
-            "con orientacion escolar o apoyo clinico si el patron persiste."
-        ),
-        alerts=[
-            AlertItem(
-                id="a1",
-                title="Malestar emocional elevado",
-                detail="Lenguaje con tristeza, agotamiento y sensacion de exclusion en las ultimas 24 horas.",
-                level="high",
-            ),
-            AlertItem(
-                id="a2",
-                title="Posible acoso relacional",
-                detail="Mensajes con rechazo repetido y foco sostenido sobre la menor en un mismo grupo.",
-                level="high",
-            ),
-            AlertItem(
-                id="a3",
-                title="Cambio de actividad",
-                detail="Menor participacion y respuestas mas cortas respecto a su patron habitual.",
-                level="medium",
-            ),
-        ],
+        teenName="",
+        updatedAt="—",
+        riskScore=0,
+        riskLabel="Sin datos",
+        summary="Aun no se han procesado conversaciones. Los resultados apareceran aqui cuando haya actividad.",
+        llmAnswer="",
+        alerts=[],
         metrics=[
-            MetricItem(label="Bienestar emocional", value="Requiere atencion", helper="Se observan senales de malestar reciente"),
-            MetricItem(label="Interaccion social", value="Cambios detectados", helper="Puede haber aislamiento o conflicto relacional"),
-            MetricItem(label="Nivel de seguimiento", value="Alto", helper="Se recomienda observacion cercana"),
-            MetricItem(label="Estado del caso", value="En revision", helper="Se actualizara si hay cambios relevantes"),
+            MetricItem(label="Bienestar emocional", value="Sin datos", helper="Se actualizara con la primera conversacion"),
+            MetricItem(label="Interaccion social", value="Sin datos", helper="Se actualizara con la primera conversacion"),
+            MetricItem(label="Nivel de seguimiento", value="Sin datos", helper="Se actualizara con la primera conversacion"),
+            MetricItem(label="Estado del caso", value="Sin datos", helper="Se actualizara con la primera conversacion"),
         ],
-        nextSteps=[
-            "Hablar con Sofia Martinez hoy en un entorno privado y sin confrontacion.",
-            "Preguntar por su experiencia escolar y su relacion con el grupo del chat.",
-            "Registrar cambios de sueno, apetito o aislamiento durante esta semana.",
-            "Escalar a orientacion escolar o profesional de salud mental si aparecen ideas autolesivas o empeora el retraimiento.",
-        ],
-        timeline=[
-            TimelineEvent(
-                id="t1",
-                time="08:41",
-                title="Escalada verbal en grupo",
-                detail='Tres mensajes consecutivos con frases de rechazo como "nadie te quiere aqui".',
-            ),
-            TimelineEvent(
-                id="t2",
-                time="08:47",
-                title="Respuesta de retirada",
-                detail='La menor responde con frases breves y evita continuar: "da igual", "lo dejo".',
-            ),
-            TimelineEvent(
-                id="t3",
-                time="09:02",
-                title="Actualizacion del seguimiento",
-                detail="Se consolidan senales de tristeza, aislamiento y hostilidad social sostenida.",
-            ),
-        ],
-        promptMetrics=prompt_metrics,
+        nextSteps=[],
+        timeline=[],
+        promptMetrics={},
     )
 
 
@@ -713,7 +700,7 @@ async def seed_child_chat_messages(pool: asyncpg.Pool) -> list[ChildChatMessageO
 async def get_shared_child_chat_messages(pool: asyncpg.Pool, conversation_id: str) -> list[ChildChatMessageOut]:
     messages_by_conversation: dict[str, list[ChildChatMessageOut]] = app.state.child_chat_messages
     if conversation_id not in messages_by_conversation:
-        messages_by_conversation[conversation_id] = await seed_child_chat_messages(pool)
+        messages_by_conversation[conversation_id] = []
     return messages_by_conversation[conversation_id]
 
 
@@ -823,10 +810,15 @@ async def lifespan(app: FastAPI):
 
     app.state.pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
     await ensure_schema(app.state.pool)
-    await ensure_demo_data(app.state.pool)
+    if os.getenv("CARE_SEED_DEMO", "false").lower() in ("1", "true", "yes"):
+        await ensure_demo_data(app.state.pool)
+        logger.info("Demo seed data loaded (CARE_SEED_DEMO=true)")
+    else:
+        logger.info("Demo seed skipped (CARE_SEED_DEMO!=true). Set CARE_SEED_DEMO=true to enable.")
     app.state.alert_hub = AlertHub()
     app.state.alert_state = build_default_dashboard()
     app.state.child_chat_messages = {}
+    app.state.message_accumulator = MessageAccumulator()
     app.state.vapid_public_key = os.getenv("CARE_WEB_PUSH_PUBLIC_KEY")
     app.state.vapid_private_key = os.getenv("CARE_WEB_PUSH_PRIVATE_KEY")
     app.state.vapid_subject = os.getenv("CARE_WEB_PUSH_SUBJECT", "mailto:care@example.com")
@@ -848,6 +840,51 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def _create_chunk_and_analyze(
+    conversation_id: str,
+    child_user_id: str,
+    messages: list[dict[str, Any]],
+) -> None:
+    """Create a conversation_chunks row and spawn background analysis."""
+    pool: asyncpg.Pool = app.state.pool
+    now = datetime.now(timezone.utc)
+    timestamps = [msg.get("timestamp", now.isoformat()) for msg in messages]
+    try:
+        earliest = min(datetime.fromisoformat(t) if isinstance(t, str) else t for t in timestamps)
+    except (ValueError, TypeError):
+        earliest = now
+
+    chunk = await pool.fetchrow(
+        """
+        INSERT INTO conversation_chunks (
+            conversation_id, chunk_start_at, chunk_end_at,
+            message_count, processing_status
+        ) VALUES ($1::uuid, $2, $3, $4, 'pending')
+        RETURNING id
+        """,
+        conversation_id,
+        earliest,
+        now,
+        len(messages),
+    )
+    chunk_id = chunk["id"]
+    logger.info(
+        "Created chunk %s for conversation %s (%d messages)",
+        chunk_id, conversation_id, len(messages),
+    )
+
+    asyncio.create_task(
+        analyze_chunk(
+            pool=pool,
+            app=app,
+            conversation_id=conversation_id,
+            chunk_id=chunk_id,
+            child_user_id=child_user_id,
+            messages=messages,
+        )
+    )
 
 
 @app.get("/health")
@@ -1073,6 +1110,36 @@ async def send_child_chat_message(user_id: str, payload: ChildChatSendRequest) -
         )
     )
 
+    # Feed message into the accumulator for pipeline analysis
+    accumulator: MessageAccumulator = app.state.message_accumulator
+    conv_id_str = str(conversation_id)
+    accumulator.append(conv_id_str, {
+        "speaker": sender["display_name"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "text": text,
+    })
+
+    if accumulator.should_flush(conv_id_str):
+        buffered = accumulator.flush(conv_id_str)
+        # Resolve child_user_id: the child who is the target of monitoring
+        # (the "other" participant, or the sender themselves — use all linked children)
+        child_user_ids = await pool.fetch(
+            """
+            SELECT cp.user_id
+            FROM conversation_participants cp
+            JOIN users u ON u.id = cp.user_id AND u.role = 'child'
+            WHERE cp.conversation_id = $1::uuid
+            """,
+            conv_id_str,
+        )
+        # Trigger analysis for each child in the conversation
+        for child_row in child_user_ids:
+            await _create_chunk_and_analyze(
+                conversation_id=conv_id_str,
+                child_user_id=str(child_row["user_id"]),
+                messages=buffered,
+            )
+
     return await get_child_chat_view(user_id)
 
 
@@ -1083,6 +1150,58 @@ async def publish_alert_state(payload: ParentDashboard) -> AlertEnvelope:
     await app.state.alert_hub.broadcast(message)
     await send_web_push_notifications(app, payload)
     return message
+
+
+@app.post("/api/analysis/trigger/{conversation_id}")
+async def trigger_analysis(conversation_id: str) -> dict[str, Any]:
+    """Manually trigger analysis on accumulated messages (or all chat messages) for a conversation."""
+    pool: asyncpg.Pool = app.state.pool
+    accumulator: MessageAccumulator = app.state.message_accumulator
+
+    # First try accumulated buffer
+    buffered = accumulator.flush(conversation_id)
+
+    # If no buffered messages, use the in-memory chat messages as fallback
+    if not buffered:
+        chat_messages = app.state.child_chat_messages.get(conversation_id, [])
+        if not chat_messages:
+            raise HTTPException(status_code=404, detail="No hay mensajes acumulados para esta conversacion")
+        buffered = [
+            {
+                "speaker": msg.senderName,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "text": msg.text,
+            }
+            for msg in chat_messages
+        ]
+
+    child_user_ids = await pool.fetch(
+        """
+        SELECT cp.user_id
+        FROM conversation_participants cp
+        JOIN users u ON u.id = cp.user_id AND u.role = 'child'
+        WHERE cp.conversation_id = $1::uuid
+        """,
+        conversation_id,
+    )
+    if not child_user_ids:
+        raise HTTPException(status_code=404, detail="No se encontraron menores en esta conversacion")
+
+    triggered = []
+    for child_row in child_user_ids:
+        await _create_chunk_and_analyze(
+            conversation_id=conversation_id,
+            child_user_id=str(child_row["user_id"]),
+            messages=buffered,
+        )
+        triggered.append(str(child_row["user_id"]))
+
+    return {
+        "status": "analysis_triggered",
+        "conversation_id": conversation_id,
+        "message_count": len(buffered),
+        "children_analyzed": triggered,
+    }
 
 
 @app.get("/api/push/public-key", response_model=PushPublicKeyOut)

@@ -613,10 +613,11 @@ export default function HomePage() {
     });
 
     const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       void refreshChildChat(selectedSession.id).catch((error) => {
         console.error("No se pudo actualizar la vista de chat", error);
       });
-    }, 2000);
+    }, 6000);
 
     return () => window.clearInterval(refreshTimer);
   }, [selectedSession]);

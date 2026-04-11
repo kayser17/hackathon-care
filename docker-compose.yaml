@@ -38,6 +38,7 @@ services:
       - CARE_WEB_PUSH_PRIVATE_KEY=${CARE_WEB_PUSH_PRIVATE_KEY:-}
       - CARE_WEB_PUSH_SUBJECT=${CARE_WEB_PUSH_SUBJECT:-mailto:care@example.com}
       - CARE_ALLOWED_ORIGINS=${CARE_ALLOWED_ORIGINS:-http://localhost:13000}
+      - CARE_SEED_DEMO=${CARE_SEED_DEMO:-false}
     volumes:
       - ~/.aws:/root/.aws
     ports:
