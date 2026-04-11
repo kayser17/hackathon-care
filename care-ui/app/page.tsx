@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   DEMO_ACCOUNTS,
@@ -355,6 +355,14 @@ function ChildChatPortal({
   chat: ChildChatView | null;
   onLogout: () => void;
 }) {
+  const threadRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (!thread) return;
+    thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
+  }, [chat?.messages.length]);
+
   if (!chat) {
     return (
       <section className="whatsapp-phone">
@@ -382,7 +390,7 @@ function ChildChatPortal({
         </div>
       </header>
 
-      <div className="wa-thread">
+      <div className="wa-thread" ref={threadRef}>
         {chat.messages.map((message) => {
           const own = message.senderId === chat.viewerUserId;
           return (
