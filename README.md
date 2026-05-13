@@ -51,3 +51,4 @@ curl -X POST http://localhost:9010/api/pacientes \
 
 - `care-database/init.sql` crea la tabla `pacientes` al iniciar PostgreSQL por primera vez.
 - La UI usa un endpoint interno (`/api/health`) que consulta el backend usando `CARE_BACKEND_URL`.
+  
